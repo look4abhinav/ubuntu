@@ -1,0 +1,140 @@
+# OS-specific files
+## macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+*.swp
+*.swo
+*~
+.Spotlight-V100
+.Trashes
+
+## Linux
+.directory
+.Trash-*
+*~
+
+## Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Editor and IDE files
+## Visual Studio Code
+.vscode/
+*.code-workspace
+
+## Vim
+.vim/
+.swp
+.swo
+*~
+.netrwhist
+
+## Emacs
+*~
+\#*\#
+.\#*
+
+## JetBrains IDEs
+.idea/
+*.iml
+*.iws
+*.ipr
+
+## Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+## Nano
+.nano_history
+
+# Environment and configuration files
+.env
+.env.local
+.env.*.local
+.dotenv
+
+# Temporary files and directories
+*.tmp
+*.temp
+.tmp/
+tmp/
+temp/
+
+# Backup files
+*.bak
+*.backup
+*~
+*.swp
+*.swo
+
+# Logs
+*.log
+logs/
+*.out
+
+# Node.js (if applicable)
+node_modules/
+package-lock.json
+yarn.lock
+npm-debug.log
+
+# Python (if applicable)
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+ENV/
+
+# Ruby (if applicable)
+Gemfile.lock
+
+# Go (if applicable)
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Docker
+docker-compose.override.yml
+.docker/
+
+# Sensitive files
+*.pem
+*.key
+*.crt
+secrets/
+.ssh/
+
+# Build artifacts
+bin/
+obj/
+out/
+dist/
+build/
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+*.rdb
+
+# OS lock files
+.lock
+.pid
+
+# Git files (only if gitkeep is not used)
+.gitkeep
+
+# Custom project-specific ignores
+# Add any project-specific patterns below
