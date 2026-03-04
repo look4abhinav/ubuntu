@@ -13,6 +13,7 @@ This project provides a one-command setup to transform a minimal Ubuntu server i
 - ✅ **Dotfiles Management**: Automated deployment using GNU Stow
 - ✅ **Docker**: Complete Docker installation with user group configuration
 - ✅ **Modern CLI Tools**:
+  - `bat` - Modern replacement for `cat` with syntax highlighting
   - `eza` - Modern replacement for `ls` with better colors and icons
   - `fzf` - Command-line fuzzy finder for enhanced terminal navigation
   - `Neovim` - Modern vim-based text editor
