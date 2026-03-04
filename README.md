@@ -35,6 +35,8 @@ ubuntu/
 ├── .gitignore         # Git ignore rules
 ├── README.md          # This file
 ├── setup.sh           # Main orchestration script
+├── lib/               # Shared libraries
+│   └── utils.sh       # Utility functions (logging, checks)
 ├── dotfiles/          # Configuration files (stow packages)
 │   └── [config files]
 └── tools/             # Individual tool installation scripts
@@ -42,12 +44,12 @@ ubuntu/
     ├── eza.sh         # eza CLI tool installation
     ├── fzf.sh         # fzf fuzzy finder installation
     ├── neovim.sh      # Neovim editor installation
-    ├── stow.sh        # GNU Stow installation
+    ├── stow.sh        # GNU Stow installation (invoked by setup.sh)
     ├── tmux.sh        # Tmux multiplexer installation
     ├── uv.sh          # uv Python package manager installation
     ├── zoxide.sh      # Zoxide smart cd installation
     └── zsh.sh         # Zsh shell installation
-``
+```
 
 ## Installation
 
@@ -63,7 +65,7 @@ bash setup.sh
 
 ### Individual Tool Installation
 
-If you prefer to install specific tools only, you can run individual scripts:
+You can run individual tool scripts, but ensure `lib/utils.sh` is accessible (the scripts expect it in `../lib/`):
 
 ```bash
 # Install only Docker
@@ -71,12 +73,6 @@ bash ./tools/docker.sh
 
 # Install only Zsh with configurations
 bash ./tools/zsh.sh
-
-# Install only Neovim
-bash ./tools/neovim.sh
-
-# Install only Tmux
-bash ./tools/tmux.sh
 ```
 
 ## Usage
@@ -88,7 +84,7 @@ bash ./tools/tmux.sh
    zsh
    ```
 
-2. **Log Out and Back In**: For some changes (like default shell), you may need to fully log out and back in
+2. **Log Out and Back In**: For some changes (like default shell or docker group), you may need to fully log out and back in
 
 3. **Verify Installation**: Check that tools are properly installed
    ```bash
@@ -102,17 +98,6 @@ bash ./tools/tmux.sh
    uv --version
    ```
 
-### Using Installed Tools
-
-- **Zsh**: Your default shell with modern features and customizations
-- **Neovim**: Advanced text editor accessible via `nvim` command
-- **Docker**: Container management (current user added to docker group)
-- **Tmux**: Create and manage terminal sessions with `tmux` command
-- **fzf**: Use fuzzy finding with Ctrl+R for command history
-- **Zoxide**: Smart directory jumping with `z` command
-- **eza**: Modern file listing with `eza` command
-- **uv**: Fast Python package management with `uv` command
-
 ## Customization
 
 ### Modifying Dotfiles
@@ -120,19 +105,17 @@ bash ./tools/tmux.sh
 Dotfiles are managed in `./dotfiles/`. To customize:
 
 1. Modify files in the `dotfiles` directory
-2. Run `stow -t $HOME dotfiles` to deploy changes
-3. Or re-run the main setup script
+2. Run `tools/stow.sh` (or let `setup.sh` handle it) to deploy changes
+3. The setup script will automatically backup conflicts
 
 ### Adding New Tools
 
 To add a new tool installation script:
 
 1. Create a new script in `./tools/` (e.g., `newtool.sh`)
-2. Add it to the `tools` array in `setup.sh`:
-   ```bash
-   tools=("docker.sh" "eza.sh" "newtool.sh" ...)
-   ```
-3. The setup script will automatically include it
+2. Make sure it sources `../lib/utils.sh` for helpers.
+3. Make it executable (`chmod +x tools/newtool.sh`).
+4. The `setup.sh` script will automatically find and run it (no need to edit an array).
 
 ## Troubleshooting
 
