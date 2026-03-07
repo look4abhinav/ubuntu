@@ -23,6 +23,7 @@ vim.opt.tabstop = 4
 vim.opt.shiftwidth = 4
 vim.opt.softtabstop = 4
 vim.opt.expandtab = true
+vim.opt.guicursor = "n-v-c-i:ver25"
 
 -- [2] CLIPBOARD (OSC 52)
 do
