@@ -121,7 +121,7 @@ alias -s py='nvim'
 alias -s env='bat'
 alias -s yml='bat'
 alias -s yaml='bat'
-alias -s yaml='md'
+alias -s md='bat'
 
 # Shell integrations
 eval "$(fzf --zsh)"
