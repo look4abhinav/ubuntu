@@ -1,220 +1,145 @@
 #!/bin/bash
 
 # ==========================================
-# Neovim & Formatters Automation Installer
-# Supports: x86_64 and aarch64 (ARM)
+# Neovim & Formatters Installer
 # ==========================================
 
-set -e
+set -euo pipefail
 
-# 1. Global Architecture Check
-ARCH=$(uname -m)
-echo "Detected architecture: $ARCH"
-
-# ==========================================
-# PART 1: NEOVIM INSTALLATION
-# ==========================================
-echo "------------------------------------------"
-echo "Starting Neovim Installation..."
-echo "------------------------------------------"
-
-# Install Dependencies
-if sudo apt install unzip -y; then
-    echo "Dependencies Installed."
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+if [ -f "$SCRIPT_DIR/../lib/utils.sh" ]; then
+    source "$SCRIPT_DIR/../lib/utils.sh"
 else
-    echo "Unable to install dependencies"
-fi
-
-# Define Neovim download URL based on architecture
-if [ "$ARCH" == "x86_64" ]; then
-    NVIM_URL="https://github.com/neovim/neovim/releases/latest/download/nvim-linux-x86_64.tar.gz"
-    NVIM_EXTRACT_FOLDER="nvim-linux-x86_64"
-elif [ "$ARCH" == "aarch64" ]; then
-    NVIM_URL="https://github.com/neovim/neovim/releases/latest/download/nvim-linux-arm64.tar.gz"
-    NVIM_EXTRACT_FOLDER="nvim-linux-arm64"
-else
-    echo "Error: Unsupported architecture $ARCH"
+    echo "Error: lib/utils.sh not found."
     exit 1
 fi
 
-TEMP_DIR=$(mktemp -d)
+log_section "Neovim Installation"
 
-echo "Downloading Neovim stable..."
-curl -L "$NVIM_URL" -o "$TEMP_DIR/nvim.tar.gz"
+check_sudo
+ensure_dependency "curl"
+ensure_dependency "tar"
+ensure_dependency "unzip"
+ensure_dependency "gzip"
 
-INSTALL_DIR_NVIM="/opt/nvim-linux"
+ARCH=$(uname -m)
+log_info "Detected architecture: $ARCH"
 
-echo "Removing previous Neovim installations..."
-if [ -d "$INSTALL_DIR_NVIM" ]; then
-    sudo rm -rf "$INSTALL_DIR_NVIM"
+# Determine URL and Folder Name
+if [ "$ARCH" == "x86_64" ]; then
+    NVIM_URL="https://github.com/neovim/neovim/releases/latest/download/nvim-linux-x86_64.tar.gz"
+    # GitHub release tarballs unpack to nvim-linux-x86_64
+    EXTRACTED_DIR="nvim-linux-x86_64"
+elif [ "$ARCH" == "aarch64" ]; then
+    NVIM_URL="https://github.com/neovim/neovim/releases/latest/download/nvim-linux-arm64.tar.gz"
+    EXTRACTED_DIR="nvim-linux-arm64"
+else
+    log_error "Unsupported architecture: $ARCH"
+    exit 1
 fi
 
-echo "Extracting to /opt..."
-sudo tar -C /opt -xzf "$TEMP_DIR/nvim.tar.gz"
+INSTALL_DIR="/opt/nvim"
 
-# Normalize folder name to /opt/nvim-linux
-if [ -d "/opt/$NVIM_EXTRACT_FOLDER" ]; then
-    sudo mv "/opt/$NVIM_EXTRACT_FOLDER" "$INSTALL_DIR_NVIM"
-fi
-
-# Fix permissions: ensure current user owns the installation
-sudo chown -R "$USER:$USER" "$INSTALL_DIR_NVIM"
-sudo chmod -R u+rwx "$INSTALL_DIR_NVIM"
-
-echo "Cleaning up Neovim temp files..."
-rm -rf "$TEMP_DIR"
-
-# Configure PATH for Neovim
-BIN_PATH="$INSTALL_DIR_NVIM/bin"
-CONFIG_FILES=("$HOME/.bashrc" "$HOME/.zshrc")
-
-for CONFIG_FILE in "${CONFIG_FILES[@]}"; do
-    if [ -f "$CONFIG_FILE" ]; then
-        if grep -q "$BIN_PATH" "$CONFIG_FILE"; then
-            echo "  [SKIP] Neovim path already in $CONFIG_FILE"
-        else
-            echo "  [UPDATE] Adding Neovim path to $CONFIG_FILE"
-            echo "" >> "$CONFIG_FILE"
-            echo "# Neovim Path" >> "$CONFIG_FILE"
-            echo "export PATH=\"\$PATH:$BIN_PATH\"" >> "$CONFIG_FILE"
-        fi
+if command_exists "nvim"; then
+    log_info "Neovim is already installed: $(nvim --version | head -n 1)"
+    # Optional: Logic to update
+else
+    log_info "Downloading Neovim..."
+    TEMP_DIR=$(mktemp -d)
+    curl -L "$NVIM_URL" -o "$TEMP_DIR/nvim.tar.gz"
+    
+    log_info "Installing to $INSTALL_DIR..."
+    # Remove old install
+    if [ -d "$INSTALL_DIR" ]; then
+        sudo rm -rf "$INSTALL_DIR"
     fi
-done
+    
+    sudo tar -C /opt -xzf "$TEMP_DIR/nvim.tar.gz"
+    
+    # Rename extracted dir to generic /opt/nvim
+    if [ -d "/opt/$EXTRACTED_DIR" ]; then
+        sudo mv "/opt/$EXTRACTED_DIR" "$INSTALL_DIR"
+    fi
+    
+    rm -rf "$TEMP_DIR"
+    
+    # Symlink
+    if [ ! -L "/usr/local/bin/nvim" ]; then
+        sudo ln -s "$INSTALL_DIR/bin/nvim" "/usr/local/bin/nvim"
+    fi
+    
+    log_success "Neovim installed."
+fi
 
-# Add to current shell's PATH immediately
-export PATH="$BIN_PATH:$PATH"
-
-echo "Neovim installed successfully."
-
-# ==========================================
-# PART 2: FORMATTERS INSTALLATION
-# ==========================================
-echo "------------------------------------------"
-echo "Starting Formatter Installation..."
-echo "------------------------------------------"
-
-# Directory where we will install the binaries
+# Formatters
+log_section "Formatters Installation"
 LOCAL_BIN="$HOME/.local/bin"
 mkdir -p "$LOCAL_BIN"
 export PATH="$LOCAL_BIN:$PATH"
 
-# Determine Formatter Filename Patterns based on Arch
-if [ "$ARCH" == "x86_64" ]; then
-    STYLUA_PATTERN="linux-x86_64.zip"
-    TAPLO_PATTERN="linux-x86_64.gz"
-    YAMLFMT_PATTERN="Linux_x86_64.tar.gz"
-elif [ "$ARCH" == "aarch64" ]; then
-    STYLUA_PATTERN="linux-aarch64.zip"
-    TAPLO_PATTERN="linux-aarch64.gz"
-    YAMLFMT_PATTERN="Linux_arm64.tar.gz"
-fi
-
-echo "Using patterns for $ARCH:"
-echo "  StyLua:  $STYLUA_PATTERN"
-echo "  Taplo:   $TAPLO_PATTERN"
-echo "  Yamlfmt: $YAMLFMT_PATTERN"
-
-# Helper function to get download URL
-get_download_url() {
+install_from_github() {
     local repo=$1
     local pattern=$2
+    local binary_name=$3
+    local type=$4 # zip, tar, gzip
     
-    # We use -i in grep for case-insensitive matching
-    local url=$(curl -s "https://api.github.com/repos/$repo/releases/latest" | \
+    log_info "Installing $binary_name from $repo..."
+    
+    # Get download URL
+    local url
+    url=$(curl -s "https://api.github.com/repos/$repo/releases/latest" | \
         grep -oP '"browser_download_url": "\K(.*)(?=")' | \
         grep -i "$pattern" | head -n 1)
-    
-    echo "$url"
-}
-
-TEMP_DIR=$(mktemp -d)
-
-# 1. Ruff (Python)
-echo "[1/4] Installing Ruff..."
-if command -v uv &> /dev/null; then
-    uv tool install ruff --force
-else
-    echo "  'uv' not found, installing via pip..."
-    pip install ruff --break-system-packages
-fi
-
-# 2. StyLua (Lua)
-echo "[2/4] Installing StyLua..."
-STYLUA_URL=$(get_download_url "JohnnyMorganz/StyLua" "$STYLUA_PATTERN")
-
-if [ -z "$STYLUA_URL" ]; then
-    echo "  ERROR: Could not find StyLua URL for $ARCH."
-else
-    curl -L -s "$STYLUA_URL" -o "$TEMP_DIR/stylua.zip"
-    unzip -q -o "$TEMP_DIR/stylua.zip" -d "$TEMP_DIR"
-    mv "$TEMP_DIR/stylua" "$LOCAL_BIN/stylua"
-    chmod u+x "$LOCAL_BIN/stylua"
-    chown "$USER:$USER" "$LOCAL_BIN/stylua"
-    echo "  Success."
-fi
-
-# 3. Taplo (TOML)
-echo "[3/4] Installing Taplo..."
-TAPLO_URL=$(get_download_url "tamasfe/taplo" "$TAPLO_PATTERN")
-
-if [ -z "$TAPLO_URL" ]; then
-    echo "  ERROR: Could not find Taplo URL for $ARCH."
-else
-    curl -L -s "$TAPLO_URL" -o "$TEMP_DIR/taplo.gz"
-    gunzip -f "$TEMP_DIR/taplo.gz"
-    mv "$TEMP_DIR/taplo" "$LOCAL_BIN/taplo"
-    chmod u+x "$LOCAL_BIN/taplo"
-    chown "$USER:$USER" "$LOCAL_BIN/taplo"
-    echo "  Success."
-fi
-
-# 4. Yamlfmt (YAML)
-echo "[4/4] Installing Yamlfmt..."
-YAMLFMT_URL=$(get_download_url "google/yamlfmt" "$YAMLFMT_PATTERN")
-
-if [ -z "$YAMLFMT_URL" ]; then
-    echo "  ERROR: Could not find Yamlfmt URL for $ARCH."
-else
-    curl -L -s "$YAMLFMT_URL" -o "$TEMP_DIR/yamlfmt.tar.gz"
-    tar -xzf "$TEMP_DIR/yamlfmt.tar.gz" -C "$TEMP_DIR"
-    mv "$TEMP_DIR/yamlfmt" "$LOCAL_BIN/yamlfmt"
-    chmod u+x "$LOCAL_BIN/yamlfmt"
-    chown "$USER:$USER" "$LOCAL_BIN/yamlfmt"
-    echo "  Success."
-fi
-
-rm -rf "$TEMP_DIR"
-
-# ==========================================
-# VERIFICATION
-# ==========================================
-echo "------------------------------------------"
-echo "VERIFICATION REPORT"
-echo "------------------------------------------"
-
-verify_tool() {
-    local name=$1
-    if command -v "$name" &> /dev/null; then
-        local version=$($name --version 2>&1 | head -n 1)
-        echo -e "✅  $name:\tFOUND ($version)"
-    else
-        echo -e "❌  $name:\tNOT FOUND"
+        
+    if [ -z "$url" ]; then
+        log_warn "Could not find release for $binary_name ($pattern)"
+        return
     fi
+    
+    TEMP_DIR=$(mktemp -d)
+    local file="$TEMP_DIR/download"
+    curl -L -s "$url" -o "$file"
+    
+    case "$type" in
+        "zip")
+            unzip -q -o "$file" -d "$TEMP_DIR"
+            mv "$TEMP_DIR/$binary_name" "$LOCAL_BIN/$binary_name"
+            ;;
+        "tar")
+            tar -xzf "$file" -C "$TEMP_DIR"
+            # Find the binary (might be in subdir)
+            find "$TEMP_DIR" -type f -name "$binary_name" -exec mv {} "$LOCAL_BIN/$binary_name" \;
+            ;;
+        "gzip")
+            gunzip -f "$file"
+            mv "$TEMP_DIR/download" "$LOCAL_BIN/$binary_name"
+            ;;
+    esac
+    
+    chmod +x "$LOCAL_BIN/$binary_name"
+    rm -rf "$TEMP_DIR"
+    log_success "$binary_name installed."
 }
 
-# Ensure both paths are in current shell for verification
-export PATH="$BIN_PATH:$LOCAL_BIN:$PATH"
+# Determine patterns
+if [ "$ARCH" == "x86_64" ]; then
+    install_from_github "JohnnyMorganz/StyLua" "linux-x86_64.zip" "stylua" "zip"
+    install_from_github "tamasfe/taplo" "linux-x86_64.gz" "taplo" "gzip"
+    install_from_github "google/yamlfmt" "Linux_x86_64.tar.gz" "yamlfmt" "tar"
+elif [ "$ARCH" == "aarch64" ]; then
+    install_from_github "JohnnyMorganz/StyLua" "linux-aarch64.zip" "stylua" "zip"
+    install_from_github "tamasfe/taplo" "linux-aarch64.gz" "taplo" "gzip"
+    install_from_github "google/yamlfmt" "Linux_arm64.tar.gz" "yamlfmt" "tar"
+fi
 
-verify_tool "nvim"
-verify_tool "ruff"
-verify_tool "stylua"
-verify_tool "taplo"
-verify_tool "yamlfmt"
+# Ruff (Python)
+log_info "Installing Ruff..."
+if command_exists "uv"; then
+    uv tool install ruff --force || log_warn "uv tool install failed"
+else
+    ensure_dependency "pip" # or python3-pip
+    # check for pip break system packages
+    pip install ruff --break-system-packages || pip install ruff || log_warn "pip install ruff failed"
+fi
 
-echo "------------------------------------------"
-echo "Note: If binaries are found but not executable, ensure paths are in your PATH."
-echo "Added paths:"
-echo "  - $BIN_PATH (Neovim)"
-echo "  - $LOCAL_BIN (Formatters)"
-echo "You may need to run: source ~/.bashrc (or ~/.zshrc)"
-echo "=========================================="
+log_success "Neovim & Formatters setup complete."

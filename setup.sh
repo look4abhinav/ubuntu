@@ -1,157 +1,87 @@
 #!/bin/bash
 
+# ==========================================
 # Master Ubuntu Server Setup Script
-# This script automates the complete setup of an Ubuntu server from scratch
+# Automates complete server setup from scratch
+# ==========================================
 
-set -o pipefail
+set -euo pipefail
 
-# Color codes for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
-
-# Tracking arrays
-SUCCESSFUL_STEPS=()
-FAILED_STEPS=()
-
-# Helper functions
-log_info() {
-    echo -e "${GREEN}[INFO]${NC} $1"
-}
-
-log_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
-}
-
-log_warning() {
-    echo -e "${YELLOW}[WARNING]${NC} $1"
-}
-
-log_section() {
-    echo -e "\n${BLUE}╔════════════════════════════════════════╗${NC}"
-    echo -e "${BLUE}║${NC} $1"
-    echo -e "${BLUE}╚════════════════════════════════════════╝${NC}"
-}
-
-log_success() {
-    echo -e "${GREEN}✓ $1${NC}"
-}
-
-# Get the directory where this script is located
+# Determine script directory
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+source "$SCRIPT_DIR/lib/utils.sh"
 
-# Verify we're on Linux
-if [[ ! "$OSTYPE" == "linux-gnu"* ]]; then
-    log_error "This script is designed for Linux systems only"
-    exit 1
-fi
+log_section "Ubuntu Server Setup"
 
-log_section "Ubuntu Server Setup Script"
-log_info "Script directory: $SCRIPT_DIR"
-log_info "Home directory: $HOME"
+# Check for sudo privileges
+check_sudo
 
-# Step 1: System Update
-log_section "Step 1: System Update"
-log_info "Running apt update and upgrade..."
-if sudo apt update && sudo apt upgrade -y; then
-    log_success "System updated and upgraded"
-    SUCCESSFUL_STEPS+=("System Update")
+# Ensure basic dependencies
+log_info "Ensuring basic dependencies..."
+ensure_dependency "curl"
+ensure_dependency "git"
+ensure_dependency "build-essential"
+
+# Update System
+log_section "System Update"
+apt_update
+if [ "${SKIP_UPGRADE:-false}" != "true" ]; then
+    log_info "Upgrading packages..."
+    sudo apt-get upgrade -y
 else
-    log_error "System update failed"
-    FAILED_STEPS+=("System Update")
+    log_info "Skipping system upgrade (SKIP_UPGRADE=true)."
 fi
+log_success "System updated."
 
-# Step 2: Setup Zsh
-log_section "Step 2: Setting up Zsh"
-if [ -f "$SCRIPT_DIR/tools/zsh.sh" ]; then
-    log_info "Running zsh.sh..."
-    if bash "$SCRIPT_DIR/tools/zsh.sh"; then
-        log_success "Zsh setup complete"
-        SUCCESSFUL_STEPS+=("Zsh Setup")
-    else
-        log_error "Zsh setup failed"
-        FAILED_STEPS+=("Zsh Setup")
-    fi
+# Install Stow
+log_section "Dotfiles Setup"
+ensure_dependency "stow"
+
+if [ -f "$SCRIPT_DIR/tools/stow.sh" ]; then
+    log_info "Delegating dotfiles setup to tools/stow.sh..."
+    # We will let the tool loop handle it, or run it explicitly here if order matters.
+    # The tool loop runs everything alphabetically. S... comes after D (docker), E (eza)...
+    # Dotfiles (stow) usually should be done early if shell configs depend on them.
+    # Zsh setup is last (Z).
+    # So alphabetical is mostly fine, but let's run stow explicitly here for clarity and then skip it in loop?
+    # Actually, simpler to just let the loop run it.
+    log_info "Stow setup will run with other tools."
 else
-    log_error "zsh.sh not found at $SCRIPT_DIR/tools/zsh.sh"
-    FAILED_STEPS+=("Zsh Setup")
+    log_warn "tools/stow.sh not found. Skipping dotfiles setup."
 fi
 
-# Step 3: Setup Stow and stow the dotfiles
-log_section "Step 3: Setting up Stow and Dotfiles"
+# Run Tool Scripts
+log_section "Installing Tools"
 
-# Install stow
-log_info "Installing stow..."
-if sudo apt install stow -y; then
-    log_success "Stow installed"
-    
-    # Stow the dotfiles
-    log_info "Stowing dotfiles from $SCRIPT_DIR/dotfiles to $HOME..."
-    if [ -d "$SCRIPT_DIR/dotfiles" ]; then
-        if cd "$SCRIPT_DIR" && stow -v -t "$HOME" dotfiles && cd - > /dev/null; then
-            log_success "Dotfiles stowed successfully"
-            SUCCESSFUL_STEPS+=("Dotfiles Setup")
+# Define tool order (optional, but good for dependencies)
+# If stow.sh is in tools/, it will run.
+# We should ensure stow runs early if other tools depend on it, but usually they don't.
+# Zsh setup might be good to run last or explicitly.
+
+# Find all executable scripts in tools/
+TOOL_SCRIPTS=("$SCRIPT_DIR/tools/"*.sh)
+
+if [ ${#TOOL_SCRIPTS[@]} -eq 0 ]; then
+    log_warn "No tool scripts found in tools/."
+else
+    for script in "${TOOL_SCRIPTS[@]}"; do
+        if [ -x "$script" ]; then
+            script_name=$(basename "$script")
+            
+            # Skip stow.sh here if we want to run it separately or if we handled it above.
+            # But since we removed the inline stow logic, we let it run here.
+            
+            log_info "Running $script_name..."
+            if "$script"; then
+                log_success "$script_name completed."
+            else
+                log_error "$script_name failed."
+            fi
         else
-            log_error "Failed to stow dotfiles"
-            FAILED_STEPS+=("Dotfiles Setup")
+            log_warn "Skipping non-executable script: $(basename "$script")"
         fi
-    else
-        log_error "dotfiles directory not found at $SCRIPT_DIR/dotfiles"
-        FAILED_STEPS+=("Dotfiles Setup")
-    fi
-else
-    log_error "Failed to install stow"
-    FAILED_STEPS+=("Dotfiles Setup")
-fi
-
-# Step 4: Install remaining tools
-log_section "Step 4: Installing Additional Tools"
-tools=("docker.sh" "eza.sh" "fzf.sh" "neovim.sh" "tmux.sh" "uv.sh" "zoxide.sh")
-
-for tool in "${tools[@]}"; do
-    tool_path="$SCRIPT_DIR/tools/$tool"
-    if [ -f "$tool_path" ]; then
-        log_info "Installing from $tool..."
-        if bash "$tool_path"; then
-            log_success "$tool completed"
-            SUCCESSFUL_STEPS+=("${tool%.*}")
-        else
-            log_error "$tool failed"
-            FAILED_STEPS+=("${tool%.*}")
-        fi
-    else
-        log_warning "$tool not found at $tool_path, skipping..."
-        FAILED_STEPS+=("${tool%.*} (not found)")
-    fi
-done
-
-# Print Summary Report
-log_section "Setup Summary"
-echo -e "\n${GREEN}Successful Steps (${#SUCCESSFUL_STEPS[@]}):${NC}"
-for step in "${SUCCESSFUL_STEPS[@]}"; do
-    echo -e "  ${GREEN}✓${NC} $step"
-done
-
-if [ ${#FAILED_STEPS[@]} -gt 0 ]; then
-    echo -e "\n${RED}Failed Steps (${#FAILED_STEPS[@]}):${NC}"
-    for step in "${FAILED_STEPS[@]}"; do
-        echo -e "  ${RED}✗${NC} $step"
     done
 fi
 
-echo ""
-if [ ${#FAILED_STEPS[@]} -eq 0 ]; then
-    log_success "All steps completed successfully!"
-else
-    log_warning "${#FAILED_STEPS[@]} step(s) failed. Please review the errors above."
-fi
-
-echo ""
-log_info "Next steps:"
-echo "  1. You may need to restart your shell or log out and log back in"
-echo "  2. Start a new shell session to use the new Zsh configuration"
-echo "  3. Check that all tools are properly installed"
-echo ""
-log_info "Enjoy your newly configured Ubuntu server!"
+log_section "Setup Complete!"
+log_info "Please restart your shell or log out/in for changes to take effect."
