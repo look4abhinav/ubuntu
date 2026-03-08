@@ -2,182 +2,86 @@
 
 # ==========================================
 # Tmux Installation Script (Source Build)
-# Based on: https://tmuxcheatsheet.com/how-to-install-tmux/
-# Supports: x86_64 and aarch64 (ARM)
 # ==========================================
 
-set -e
+set -euo pipefail
 
-# Color codes for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m'
-
-# ==========================================
-# PART 1: PREREQUISITES & DEPENDENCIES
-# ==========================================
-echo -e "${BLUE}========================================${NC}"
-echo -e "${BLUE}Tmux Installation from Source${NC}"
-echo -e "${BLUE}========================================${NC}"
-
-echo -e "\n${BLUE}[1/5] Installing Build Dependencies...${NC}"
-
-echo "Updating package lists..."
-if sudo apt-get update -y > /dev/null 2>&1; then
-    echo -e "${GREEN}✅  Package lists updated${NC}"
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+if [ -f "$SCRIPT_DIR/../lib/utils.sh" ]; then
+    source "$SCRIPT_DIR/../lib/utils.sh"
 else
-    echo -e "${RED}❌  Failed to update package lists${NC}"
+    echo "Error: lib/utils.sh not found."
     exit 1
 fi
 
-echo "Installing dependencies..."
-DEPS="libevent-dev ncurses-dev build-essential bison pkg-config curl tar"
-if sudo apt-get install -y $DEPS > /dev/null 2>&1; then
-    echo -e "${GREEN}✅  Build dependencies installed${NC}"
-else
-    echo -e "${RED}❌  Failed to install dependencies${NC}"
-    exit 1
+log_section "Tmux Installation"
+
+check_sudo
+
+# 1. Check current version
+if command_exists "tmux"; then
+    CURRENT_VER=$(tmux -V | cut -d' ' -f2)
+    log_info "Tmux is already installed: $CURRENT_VER"
+    # Optional: Compare versions logic
 fi
 
-# ==========================================
-# PART 2: DOWNLOAD SOURCE
-# ==========================================
-echo -e "\n${BLUE}[2/5] Downloading Tmux Source...${NC}"
+# 2. Dependencies
+log_info "Installing build dependencies..."
+apt_update
+ensure_dependency "libevent-dev"
+ensure_dependency "ncurses-dev"
+ensure_dependency "build-essential"
+ensure_dependency "bison"
+ensure_dependency "pkg-config"
+ensure_dependency "curl"
+ensure_dependency "git"
+ensure_dependency "tar"
 
-echo "Fetching latest tmux version..."
-TMUX_VERSION=$(curl -s https://api.github.com/repos/tmux/tmux/releases/latest | grep -oP '"tag_name": "\K(.*)(?=")')
+# 3. Get Version
+log_info "Fetching latest tmux version..."
+LATEST_TAG=$(curl -s https://api.github.com/repos/tmux/tmux/releases/latest | grep -oP '"tag_name": "\K(.*)(?=")')
 
-if [ -z "$TMUX_VERSION" ]; then
-    echo -e "${YELLOW}⚠️  Could not fetch latest version, using fallback 3.5a${NC}"
-    TMUX_VERSION="3.5a"
+if [ -z "$LATEST_TAG" ]; then
+    LATEST_TAG="3.4" # Fallback
+    log_warn "Could not fetch latest version, using fallback: $LATEST_TAG"
 fi
 
-echo -e "${GREEN}✅  Detected version: $TMUX_VERSION${NC}"
-
-TEMP_DIR=$(mktemp -d)
-echo "Temporary directory: $TEMP_DIR"
-
-DOWNLOAD_URL="https://github.com/tmux/tmux/releases/download/${TMUX_VERSION}/tmux-${TMUX_VERSION}.tar.gz"
-
-echo "Downloading tmux from GitHub..."
-if curl -L "$DOWNLOAD_URL" -o "$TEMP_DIR/tmux.tar.gz" > /dev/null 2>&1; then
-    echo -e "${GREEN}✅  Download successful${NC}"
+if [ "${CURRENT_VER:-}" == "$LATEST_TAG" ] || [ "${CURRENT_VER:-}" == "tmux $LATEST_TAG" ]; then
+    log_info "Tmux is up to date ($LATEST_TAG)."
 else
-    echo -e "${RED}❌  Failed to download tmux${NC}"
+    log_info "Installing Tmux $LATEST_TAG..."
+    TEMP_DIR=$(mktemp -d)
+    
+    # Download
+    DOWNLOAD_URL="https://github.com/tmux/tmux/releases/download/${LATEST_TAG}/tmux-${LATEST_TAG}.tar.gz"
+    curl -L "$DOWNLOAD_URL" -o "$TEMP_DIR/tmux.tar.gz"
+    
+    # Extract
+    tar -xzf "$TEMP_DIR/tmux.tar.gz" -C "$TEMP_DIR"
+    SRC_DIR=$(find "$TEMP_DIR" -maxdepth 1 -type d -name "tmux-*")
+    
+    cd "$SRC_DIR"
+    ./configure
+    make
+    sudo make install
+    
+    cd "$SCRIPT_DIR"
     rm -rf "$TEMP_DIR"
-    exit 1
+    log_success "Tmux installed."
 fi
 
-# ==========================================
-# PART 3: BUILD FROM SOURCE
-# ==========================================
-echo -e "\n${BLUE}[3/5] Building from Source...${NC}"
-
-echo "Extracting archive..."
-if tar -xzf "$TEMP_DIR/tmux.tar.gz" -C "$TEMP_DIR"; then
-    echo -e "${GREEN}✅  Archive extracted${NC}"
-else
-    echo -e "${RED}❌  Failed to extract archive${NC}"
-    rm -rf "$TEMP_DIR"
-    exit 1
-fi
-
-SRC_DIR="$TEMP_DIR/tmux-$TMUX_VERSION"
-
-if [ ! -d "$SRC_DIR" ]; then
-    echo -e "${RED}❌  Source directory not found: $SRC_DIR${NC}"
-    rm -rf "$TEMP_DIR"
-    exit 1
-fi
-
-cd "$SRC_DIR"
-
-echo "Running configure..."
-if ./configure > /dev/null 2>&1; then
-    echo -e "${GREEN}✅  Configure completed${NC}"
-else
-    echo -e "${RED}❌  Configure failed${NC}"
-    cd ~
-    rm -rf "$TEMP_DIR"
-    exit 1
-fi
-
-echo "Compiling (this may take a moment)..."
-if make > /dev/null 2>&1; then
-    echo -e "${GREEN}✅  Compilation successful${NC}"
-else
-    echo -e "${RED}❌  Compilation failed${NC}"
-    cd ~
-    rm -rf "$TEMP_DIR"
-    exit 1
-fi
-
-echo "Installing to system..."
-if sudo make install > /dev/null 2>&1; then
-    echo -e "${GREEN}✅  Installation successful${NC}"
-else
-    echo -e "${RED}❌  Installation failed${NC}"
-    cd ~
-    rm -rf "$TEMP_DIR"
-    exit 1
-fi
-
-# Clean up
-cd ~
-rm -rf "$TEMP_DIR"
-echo -e "${GREEN}✅  Cleaned up temporary files${NC}"
-
-# ==========================================
-# PART 4: VERIFY INSTALLATION
-# ==========================================
-echo -e "\n${BLUE}[4/5] Verifying Installation...${NC}"
-
-if command -v tmux &> /dev/null; then
-    TMUX_PATH=$(which tmux)
-    TMUX_VER=$(tmux -V)
-    echo -e "${GREEN}✅  Tmux found at: $TMUX_PATH${NC}"
-    echo -e "${GREEN}✅  $TMUX_VER${NC}"
-else
-    echo -e "${YELLOW}⚠️  Tmux not found in PATH${NC}"
-    echo -e "    It was installed to /usr/local/bin"
-    echo -e "    Ensure /usr/local/bin is in your PATH"
-fi
-
-# ==========================================
-# PART 5: INSTALL TPM (TMUX PLUGIN MANAGER)
-# ==========================================
-echo -e "\n${BLUE}[5/5] Setting up Tmux Plugin Manager...${NC}"
-
+# 4. Install TPM
+TPM_DIR="$HOME/.tmux/plugins/tpm"
+# OR ~/.config/tmux/plugins/tpm depending on config. Let's use standard.
+# The original script used ~/.config/tmux/plugins/tpm.
 TPM_DIR="$HOME/.config/tmux/plugins/tpm"
 
 if [ -d "$TPM_DIR" ]; then
-    echo "Tmux Plugin Manager already installed. Updating..."
-    cd "$TPM_DIR"
-    if git pull > /dev/null 2>&1; then
-        echo -e "${GREEN}✅  Tmux Plugin Manager updated${NC}"
-    else
-        echo -e "${YELLOW}⚠️  Failed to update TPM${NC}"
-    fi
+    log_info "Updating TPM..."
+    git -C "$TPM_DIR" pull
 else
-    echo "Installing Tmux Plugin Manager..."
-    if git clone https://github.com/tmux-plugins/tpm "$TPM_DIR" > /dev/null 2>&1; then
-        echo -e "${GREEN}✅  Tmux Plugin Manager installed${NC}"
-    else
-        echo -e "${YELLOW}⚠️  Failed to install TPM${NC}"
-    fi
+    log_info "Installing TPM..."
+    git clone https://github.com/tmux-plugins/tpm "$TPM_DIR"
 fi
 
-cd ~
-
-# ==========================================
-# SUMMARY
-# ==========================================
-echo -e "\n${BLUE}========================================${NC}"
-echo -e "${GREEN}✅  Installation Complete!${NC}"
-echo -e "${BLUE}========================================${NC}"
-echo -e "Tmux version: $(tmux -V)"
-echo -e "Installation path: $(which tmux)"
-echo -e "TPM directory: $TPM_DIR"
-echo -e "${BLUE}========================================${NC}\n"
+log_success "Tmux setup complete."
