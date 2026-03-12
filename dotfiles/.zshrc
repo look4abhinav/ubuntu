@@ -128,5 +128,7 @@ eval "$(fzf --zsh)"
 eval "$(zoxide init --cmd cd zsh)"
 
 # UV Setup
-. "$HOME/.local/bin/env"
 eval "$(uv generate-shell-completion zsh)"
+
+# Neovim Path
+export PATH="$PATH:/opt/nvim-linux/bin"

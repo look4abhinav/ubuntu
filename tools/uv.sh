@@ -72,30 +72,6 @@ else
     exit 1
 fi
 
-# Determine installation directory based on shell
-UV_INSTALL_DIR="$HOME/.cargo/bin"
-
-# Add to current shell's PATH immediately
-export PATH="$UV_INSTALL_DIR:$PATH"
-
-# Configure PATH for UV in shell config files
-CONFIG_FILES=("$HOME/.bashrc" "$HOME/.zshrc")
-
-for CONFIG_FILE in "${CONFIG_FILES[@]}"; do
-    if [ -f "$CONFIG_FILE" ]; then
-        if grep -q "$UV_INSTALL_DIR" "$CONFIG_FILE"; then
-            echo "  [SKIP] UV path already in $CONFIG_FILE"
-        else
-            echo "  [UPDATE] Adding UV path to $CONFIG_FILE"
-            echo "" >> "$CONFIG_FILE"
-            echo "# UV (Astral Python Package Manager)" >> "$CONFIG_FILE"
-            echo "export PATH=\"\$PATH:$UV_INSTALL_DIR\"" >> "$CONFIG_FILE"
-        fi
-    fi
-done
-
-echo "✅  UV installed successfully."
-
 # ==========================================
 # PART 3: UV TOOLS INSTALLATION
 # ==========================================
