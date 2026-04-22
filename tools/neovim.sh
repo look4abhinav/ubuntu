@@ -186,6 +186,39 @@ fi
 rm -rf "$TEMP_DIR"
 
 # ==========================================
+# PART 3: TREE-SITTER INSTALLATION
+# ==========================================
+echo "------------------------------------------"
+echo "Starting Tree-sitter Installation..."
+echo "------------------------------------------"
+
+if [ "$ARCH" == "x86_64" ]; then
+    TS_ZIP="tree-sitter-cli-linux-x64.zip"
+elif [ "$ARCH" == "aarch64" ]; then
+    TS_ZIP="tree-sitter-cli-linux-arm64.zip"
+fi
+
+TS_URL="https://github.com/tree-sitter/tree-sitter/releases/latest/download/$TS_ZIP"
+echo "Downloading Tree-sitter from $TS_URL..."
+TEMP_DIR=$(mktemp -d)
+curl -L -s "$TS_URL" -o "$TEMP_DIR/$TS_ZIP"
+
+echo "Extracting Tree-sitter..."
+unzip -q -o "$TEMP_DIR/$TS_ZIP" -d "$TEMP_DIR"
+
+# Note: installing to /usr/local/bin as requested for global availability
+echo "Installing to /usr/local/bin..."
+sudo mv "$TEMP_DIR/tree-sitter" /usr/local/bin/tree-sitter
+sudo chmod +x /usr/local/bin/tree-sitter
+
+rm -rf "$TEMP_DIR"
+
+# Clear bash command hash table to recognize the new binary
+hash -r 2>/dev/null || true
+
+echo "Tree-sitter installed successfully."
+
+# ==========================================
 # VERIFICATION
 # ==========================================
 echo "------------------------------------------"
@@ -210,6 +243,7 @@ verify_tool "ruff"
 verify_tool "stylua"
 verify_tool "taplo"
 verify_tool "yamlfmt"
+verify_tool "tree-sitter"
 
 echo "------------------------------------------"
 echo "Note: If binaries are found but not executable, ensure paths are in your PATH."
