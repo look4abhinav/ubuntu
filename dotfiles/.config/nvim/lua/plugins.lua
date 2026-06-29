@@ -66,14 +66,19 @@ require("lazy").setup({
 	-- 5.4 SYNTAX HIGHLIGHTING
 	{
 		"nvim-treesitter/nvim-treesitter",
-		lazy = false,
+		branch = "master",
 		build = ":TSUpdate",
 		config = function()
-			require("nvim-treesitter").install({ "python", "markdown", "lua" })
+			require("nvim-treesitter.configs").setup({
+				ensure_installed = { "python", "markdown", "lua", "c", "vim", "vimdoc" },
+				sync_install = false,
+				auto_install = true,
+				highlight = { enable = true },
+				indent = { enable = true },
+			})
 			vim.api.nvim_create_autocmd("FileType", {
 				pattern = { "python", "lua", "c", "vim" },
 				callback = function()
-					vim.treesitter.start()
 					vim.bo.indentexpr = "v:lua.require'nvim-treesitter'.indentexpr()"
 					vim.wo.foldmethod = "expr"
 					vim.wo.foldexpr = "v:lua.vim.treesitter.foldexpr()"
