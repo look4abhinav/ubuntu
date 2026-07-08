@@ -19,7 +19,9 @@ echo "Starting Neovim Installation..."
 echo "------------------------------------------"
 
 # Install Dependencies
-if sudo apt install unzip -y; then
+#   - unzip      : required to unpack nvim / StyLua / tree-sitter archives
+#   - ripgrep    : required by Telescope :live_grep
+if sudo apt install -y unzip ripgrep; then
     echo "Dependencies Installed."
 else
     echo "Unable to install dependencies"
@@ -64,24 +66,29 @@ sudo chmod -R u+rwx "$INSTALL_DIR_NVIM"
 echo "Cleaning up Neovim temp files..."
 rm -rf "$TEMP_DIR"
 
-# Configure PATH for Neovim
-BIN_PATH="$INSTALL_DIR_NVIM/bin"
-CONFIG_FILES=("$HOME/.bashrc" "$HOME/.zshrc")
+# Neovim's bin directory (/opt/nvim-linux/bin) is added to PATH by the stowed
+# ~/.zshrc, so we intentionally do NOT modify shell rc files here. Keeping tool
+# installers free of dotfile edits means dotfiles remain the single source of
+# truth (see request #5 in the repo's setup review).
 
-for CONFIG_FILE in "${CONFIG_FILES[@]}"; do
-    if [ -f "$CONFIG_FILE" ]; then
-        if grep -q "$BIN_PATH" "$CONFIG_FILE"; then
-            echo "  [SKIP] Neovim path already in $CONFIG_FILE"
-        else
-            echo "  [UPDATE] Adding Neovim path to $CONFIG_FILE"
-            echo "" >> "$CONFIG_FILE"
-            echo "# Neovim Path" >> "$CONFIG_FILE"
-            echo "export PATH=\"\$PATH:$BIN_PATH\"" >> "$CONFIG_FILE"
-        fi
+# Make the Neovim config usable with `sudo nvim` too. sudo resets HOME to
+# /root, so link root's nvim config dir at the user's config so the same
+# plugins/settings load when editing as root.
+NVIM_CONFIG_DIR="$HOME/.config/nvim"
+if [ -d "$NVIM_CONFIG_DIR" ]; then
+    sudo mkdir -p /root/.config
+    if [ -e /root/.config/nvim ] && [ ! -L /root/.config/nvim ]; then
+        echo "  [SKIP] /root/.config/nvim already exists as a real directory; not overwriting"
+    else
+        sudo ln -sfn "$NVIM_CONFIG_DIR" /root/.config/nvim
+        echo "  [OK] Linked /root/.config/nvim -> $NVIM_CONFIG_DIR"
     fi
-done
+else
+    echo "  [WARN] $NVIM_CONFIG_DIR not found; stow dotfiles first for sudo nvim support"
+fi
 
-# Add to current shell's PATH immediately
+# Add to current shell's PATH immediately so verification below finds nvim
+BIN_PATH="$INSTALL_DIR_NVIM/bin"
 export PATH="$BIN_PATH:$PATH"
 
 echo "Neovim installed successfully."
@@ -239,6 +246,7 @@ verify_tool() {
 export PATH="$BIN_PATH:$LOCAL_BIN:$PATH"
 
 verify_tool "nvim"
+verify_tool "rg"
 verify_tool "ruff"
 verify_tool "stylua"
 verify_tool "taplo"
@@ -246,9 +254,7 @@ verify_tool "yamlfmt"
 verify_tool "tree-sitter"
 
 echo "------------------------------------------"
-echo "Note: If binaries are found but not executable, ensure paths are in your PATH."
-echo "Added paths:"
-echo "  - $BIN_PATH (Neovim)"
-echo "  - $LOCAL_BIN (Formatters)"
-echo "You may need to run: source ~/.bashrc (or ~/.zshrc)"
+echo "Note: Persistent PATH entries live in the stowed ~/.zshrc, not here:"
+echo "  - /opt/nvim-linux/bin   (Neovim)"
+echo "  - ~/.local/bin          (Formatters / uv tools)"
 echo "=========================================="

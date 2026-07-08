@@ -86,10 +86,33 @@ log_section "Step 3: Setting up Stow and Dotfiles"
 log_info "Installing stow..."
 if sudo apt install stow -y; then
     log_success "Stow installed"
-    
+
     # Stow the dotfiles
     log_info "Stowing dotfiles from $SCRIPT_DIR/dotfiles to $HOME..."
     if [ -d "$SCRIPT_DIR/dotfiles" ]; then
+        # Back up existing dotfiles that would clash with the ones we manage.
+        # Only real files are moved (existing symlinks from a previous stow are
+        # left alone so re-running setup is idempotent). ~/.zshrc and
+        # ~/.gitconfig are backed up explicitly as requested; ~/.p10k.zsh is
+        # managed here too so we include it for safety.
+        BACKUP_DIR="$HOME/.dotfiles_backup_$(date +%Y%m%d_%H%M%S)"
+        BACKUP_FILES=(".zshrc" ".gitconfig" ".p10k.zsh")
+        mkdir -p "$BACKUP_DIR"
+        backed_up=0
+        for f in "${BACKUP_FILES[@]}"; do
+            if [ -e "$HOME/$f" ] && [ ! -L "$HOME/$f" ]; then
+                mv "$HOME/$f" "$BACKUP_DIR/$f"
+                log_info "Backed up existing ~/$f -> $BACKUP_DIR/$f"
+                backed_up=$((backed_up + 1))
+            fi
+        done
+        if [ "$backed_up" -eq 0 ]; then
+            rmdir "$BACKUP_DIR" 2>/dev/null || true
+            log_info "No existing dotfiles needed backing up"
+        else
+            log_info "Backed up $backed_up file(s) to $BACKUP_DIR"
+        fi
+
         if cd "$SCRIPT_DIR" && stow -v -t "$HOME" dotfiles && cd - > /dev/null; then
             log_success "Dotfiles stowed successfully"
             SUCCESSFUL_STEPS+=("Dotfiles Setup")
@@ -108,7 +131,7 @@ fi
 
 # Step 4: Install remaining tools
 log_section "Step 4: Installing Additional Tools"
-tools=("docker.sh" "eza.sh" "fzf.sh" "neovim.sh" "tmux.sh" "uv.sh" "zoxide.sh")
+tools=("bat.sh" "docker.sh" "eza.sh" "fzf.sh" "neovim.sh" "tmux.sh" "uv.sh" "zoxide.sh")
 
 for tool in "${tools[@]}"; do
     tool_path="$SCRIPT_DIR/tools/$tool"

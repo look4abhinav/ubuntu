@@ -1,5 +1,12 @@
-# Remove existing Docker installations and related packages
-sudo apt remove $(dpkg --get-selections docker.io docker-compose docker-compose-v2 docker-doc podman-docker containerd runc | cut -f1)
+#!/bin/bash
+
+set -euo pipefail
+
+# Remove existing Docker installations and related packages (only if any are installed)
+OLD_PACKAGES=$(dpkg --get-selections docker.io docker-compose docker-compose-v2 docker-doc podman-docker containerd runc 2>/dev/null | cut -f1 | tr '\n' ' ')
+if [ -n "${OLD_PACKAGES// /}" ]; then
+	sudo apt remove -y $OLD_PACKAGES
+fi
 
 # Add Docker official GPG key:
 sudo apt update

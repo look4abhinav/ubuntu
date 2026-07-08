@@ -1,7 +1,14 @@
 #!/bin/bash
 
 # FZF (Fuzzy Finder) installation and update script
-# Installs or updates fzf to the latest version from the official repository
+# Installs or updates the fzf binary from the official repository.
+#
+# Only the binary is installed here (--bin). fzf's key bindings and completion
+# are wired up by the stowed ~/.zshrc via the cached `fzf --zsh` output, so we
+# deliberately do NOT let the installer edit shell rc files (dotfiles stay the
+# single source of truth). ~/.fzf/bin is already on PATH via ~/.zshrc.
+
+set -e
 
 FZF_DIR="$HOME/.fzf"
 
@@ -17,5 +24,7 @@ else
     git clone --depth 1 https://github.com/junegunn/fzf.git "$FZF_DIR"
 fi
 
-# Run the installer
-"$FZF_DIR/install"
+# Install/update the binary only (no rc-file modifications)
+"$FZF_DIR/install" --bin
+
+echo "FZF installed to $FZF_DIR/bin/fzf"

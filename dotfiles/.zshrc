@@ -7,7 +7,7 @@ if [[ -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]
 fi
 
 # PATH modifications
-export PATH="$PATH:$HOME/.local/bin:/opt/nvim-linux/bin"
+export PATH="$PATH:$HOME/.fzf/bin:$HOME/.local/bin:/opt/nvim-linux/bin"
 
 # =============================================================================
 # 2. ZINIT PACKAGE MANAGER

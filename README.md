@@ -15,10 +15,13 @@ This project provides a one-command setup to transform a minimal Ubuntu server i
 - ✅ **Modern CLI Tools**:
   - `eza` - Modern replacement for `ls` with better colors and icons
   - `fzf` - Command-line fuzzy finder for enhanced terminal navigation
-  - `Neovim` - Modern vim-based text editor
+  - `Neovim` - Modern vim-based text editor (with `sudo nvim` support)
   - `Tmux` - Terminal multiplexer for session management
   - `uv` - Fast Python package installer
   - `Zoxide` - Smarter `cd` command with learning capabilities
+  - `bat` - A `cat` clone with syntax highlighting (with Catppuccin themes)
+  - `ripgrep` - Recursive search (required by Neovim's Telescope `live_grep`)
+- ✅ **Dotfiles Backup**: Existing `.zshrc` and `.gitconfig` are backed up before stowing
 - ✅ **Modular Architecture**: Each tool is installable independently
 
 ## Prerequisites
@@ -38,11 +41,11 @@ ubuntu/
 ├── dotfiles/          # Configuration files (stow packages)
 │   └── [config files]
 └── tools/             # Individual tool installation scripts
+    ├── bat.sh        # bat + Catppuccin themes installation
     ├── docker.sh      # Docker installation
     ├── eza.sh         # eza CLI tool installation
-    ├── fzf.sh         # fzf fuzzy finder installation
-    ├── neovim.sh      # Neovim editor installation
-    ├── stow.sh        # GNU Stow installation
+    ├── fzf.sh         # fzf binary installation (no rc-file edits)
+    ├── neovim.sh      # Neovim editor + formatters + sudo nvim support
     ├── tmux.sh        # Tmux multiplexer installation
     ├── uv.sh          # uv Python package manager installation
     ├── zoxide.sh      # Zoxide smart cd installation
@@ -100,6 +103,8 @@ bash ./tools/tmux.sh
    eza --version
    zoxide --version
    uv --version
+   bat --version
+   rg --version
    ```
 
 ### Using Installed Tools
@@ -208,7 +213,7 @@ Potential additions for future versions:
 - [ ] Configuration templates for different use cases
 - [ ] Rollback functionality
 - [ ] Support for other Linux distributions (Debian, Fedora, etc.)
-- [ ] Automated backup of existing configurations
+- [x] Automated backup of existing configurations
 - [ ] Installation verification tests
 
 ## Additional Resources
@@ -219,7 +224,9 @@ Potential additions for future versions:
 - **Docker**: https://docs.docker.com/
 - **fzf**: https://github.com/junegunn/fzf
 - **Tmux**: https://github.com/tmux/tmux
-- **Zoxide**: https://github.com/ajeetdsoutn/zoxide
+- **Zoxide**: https://github.com/ajeetdsouza/zoxide
+- **bat**: https://github.com/sharkdp/bat
+- **ripgrep**: https://github.com/BurntSushi/ripgrep
 
 ---
 
