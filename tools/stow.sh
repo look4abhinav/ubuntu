@@ -2,10 +2,10 @@
 
 # ==========================================
 # Dotfiles Setup via GNU Stow
-# Clones the shared dotfiles repo to ~/dotfiles and symlinks them.
-# The repo is cloned only when missing and never `git pull`ed, so re-running
-# setup never mutates user-managed dotfiles. Stowing is idempotent and re-run
-# to repair any previously failed links.
+# Copies the repo's dotfiles/ directory to ~/dotfiles (only when missing) and
+# symlinks them from there. Existing ~/dotfiles is never overwritten, so
+# re-running setup leaves user-managed dotfiles untouched. Stowing is
+# idempotent and re-run to repair any previously failed links.
 # ==========================================
 
 set -euo pipefail
@@ -14,8 +14,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=../lib.sh
 source "$SCRIPT_DIR/../lib.sh"
 
+DOTFILES_SRC="$SCRIPT_DIR/../dotfiles"
 DOTFILES_DIR="$HOME/dotfiles"
-DOTFILES_REPO="https://github.com/look4abhinav/dotfiles.git"
 
 log_section "Dotfiles Setup via GNU Stow"
 
@@ -23,15 +23,15 @@ log_section "Dotfiles Setup via GNU Stow"
 log_info "Ensuring git and stow are installed..."
 apt_install git stow
 
-# 2) Clone the repo only if missing; never update an existing checkout
-if [ ! -d "$DOTFILES_DIR" ]; then
-	log_info "Cloning dotfiles repository..."
-	if ! git clone "$DOTFILES_REPO" "$DOTFILES_DIR"; then
-		die "Failed to clone dotfiles from $DOTFILES_REPO"
-	fi
-	log_success "Dotfiles cloned to $DOTFILES_DIR"
+# 2) Place the dotfiles at ~/dotfiles (only if not already present)
+if [ -d "$DOTFILES_DIR" ]; then
+	log_info "Dotfiles already present at $DOTFILES_DIR; leaving them untouched (manage updates manually)"
+elif [ ! -d "$DOTFILES_SRC" ]; then
+	die "dotfiles source not found: $DOTFILES_SRC"
 else
-	log_info "Dotfiles already present at $DOTFILES_DIR (left untouched; manage updates manually)"
+	log_info "Copying dotfiles to $DOTFILES_DIR..."
+	cp -r "$DOTFILES_SRC" "$DOTFILES_DIR"
+	log_success "Dotfiles placed at $DOTFILES_DIR"
 fi
 
 # 3) Back up any existing real files that would clash with the stow targets
@@ -53,7 +53,7 @@ if [ "$backed_up" -gt 0 ]; then
 	log_info "Backed up $backed_up file(s) to $BACKUP_DIR"
 fi
 
-# 4) Stow the dotfiles (treat the repo root as the package)
+# 4) Stow the dotfiles (treat the dotfiles directory as the package)
 log_info "Stowing dotfiles from $DOTFILES_DIR to $HOME..."
 if stow -d "$DOTFILES_DIR" -t "$HOME" .; then
 	log_success "Dotfiles stowed successfully"
