@@ -6,7 +6,6 @@
 # - Neovim: latest stable tarball -> /opt/nvim-linux
 # - Formatters: stylua, taplo, yamlfmt, shfmt -> ~/.local/bin
 # - shellcheck: via apt
-# - tree-sitter CLI: -> /usr/local/bin
 # ruff is installed by tools/uv.sh (single source of truth).
 # ==========================================
 
@@ -70,7 +69,6 @@ x86_64)
 	TAPLO_PATTERN="linux-x86_64.gz"
 	YAMLFMT_PATTERN="Linux_x86_64.tar.gz"
 	SHFMT_PATTERN="linux_amd64"
-	TS_ZIP="tree-sitter-cli-linux-x64.zip"
 	;;
 aarch64)
 	NVIM_URL="https://github.com/neovim/neovim/releases/latest/download/nvim-linux-arm64.tar.gz"
@@ -79,7 +77,6 @@ aarch64)
 	TAPLO_PATTERN="linux-aarch64.gz"
 	YAMLFMT_PATTERN="Linux_arm64.tar.gz"
 	SHFMT_PATTERN="linux_arm64"
-	TS_ZIP="tree-sitter-cli-linux-arm64.zip"
 	;;
 *) die "Unsupported architecture: $ARCH" ;;
 esac
@@ -131,18 +128,7 @@ install_formatter "tamasfe/taplo" "$TAPLO_PATTERN" "taplo"
 install_formatter "google/yamlfmt" "$YAMLFMT_PATTERN" "yamlfmt"
 install_formatter "mvdan/sh" "$SHFMT_PATTERN" "shfmt"
 
-# 6) tree-sitter CLI
-log_section "tree-sitter CLI"
-TMP="$(mktemp -d)"
-curl -Ls "https://github.com/tree-sitter/tree-sitter/releases/latest/download/$TS_ZIP" -o "$TMP/$TS_ZIP"
-unzip -q -o "$TMP/$TS_ZIP" -d "$TMP"
-sudo mv "$TMP/tree-sitter" /usr/local/bin/tree-sitter
-sudo chmod +x /usr/local/bin/tree-sitter
-rm -rf "$TMP"
-hash -r 2>/dev/null || true
-log_success "tree-sitter installed: $(tree-sitter --version | head -n1)"
-
-# 7) Verification
+# 6) Verification
 log_section "Verification"
 verify_tool nvim
 verify_tool rg
@@ -151,4 +137,3 @@ verify_tool stylua
 verify_tool taplo
 verify_tool yamlfmt
 verify_tool shfmt
-verify_tool tree-sitter

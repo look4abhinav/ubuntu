@@ -54,6 +54,13 @@ if [ "$backed_up" -gt 0 ]; then
 fi
 
 # 4) Stow the dotfiles (treat the dotfiles directory as the package)
+#    Pre-create top-level directories (e.g. ~/.config) so stow "folds" into
+#    them as real directories with symlinked leaves, rather than symlinking the
+#    whole directory (which would shadow other apps' configs).
+while IFS= read -r dir; do
+	mkdir -p "$HOME/$dir"
+done < <(find "$DOTFILES_DIR" -mindepth 1 -maxdepth 1 -type d -exec basename {} \;)
+
 log_info "Stowing dotfiles from $DOTFILES_DIR to $HOME..."
 if stow -d "$DOTFILES_DIR" -t "$HOME" .; then
 	log_success "Dotfiles stowed successfully"
