@@ -38,6 +38,8 @@ Components: stable
 Signed-By: /etc/apt/keyrings/docker.asc
 EOF
 
+# Fetch the (possibly newly-added) repo index before installing
+apt_force_update
 apt_install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 
 # Enable the service and add the user to the docker group

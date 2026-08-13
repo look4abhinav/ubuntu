@@ -52,13 +52,20 @@ verify_tool() {
 # even though every tool script is executed as its own process.
 APT_UPDATE_FLAG="${XDG_CACHE_HOME:-$HOME/.cache}/ubuntu-setup/apt-updated"
 
+# Always run `apt-get update` and refresh the marker. Use this after adding a
+# new apt repository, whose index won't be present until an update runs.
+apt_force_update() {
+	sudo apt-get update -y
+	mkdir -p "$(dirname "$APT_UPDATE_FLAG")"
+	touch "$APT_UPDATE_FLAG"
+}
+
+# Run `apt-get update` at most once per setup run (30m TTL).
 apt_update() {
 	if [[ -f "$APT_UPDATE_FLAG" ]] && [[ $(($(date +%s) - $(stat -c %Y "$APT_UPDATE_FLAG"))) -lt 1800 ]]; then
 		return 0
 	fi
-	sudo apt-get update -y
-	mkdir -p "$(dirname "$APT_UPDATE_FLAG")"
-	touch "$APT_UPDATE_FLAG"
+	apt_force_update
 }
 
 apt_install() {

@@ -43,6 +43,8 @@ fi
 
 sudo chmod 644 "$GPG_KEY_FILE" "$REPO_LIST_FILE"
 
+# Fetch the (possibly newly-added) repo index before installing
+apt_force_update
 apt_install eza
 
 if cmd_exists eza; then

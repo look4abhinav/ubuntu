@@ -25,6 +25,9 @@ else
 	log_info "fd already on PATH ($(command -v fd || command -v fdfind))"
 fi
 
+# ~/.local/bin isn't on the script's PATH yet; add it so the check below works
+export PATH="$LOCAL_BIN:$PATH"
+
 if cmd_exists fd; then
 	log_success "fd installed: $(fd --version 2>/dev/null | head -n1)"
 else
