@@ -1,30 +1,29 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-# FZF (Fuzzy Finder) installation and update script
-# Installs or updates the fzf binary from the official repository.
-#
-# Only the binary is installed here (--bin). fzf's key bindings and completion
-# are wired up by the stowed ~/.zshrc via the cached `fzf --zsh` output, so we
-# deliberately do NOT let the installer edit shell rc files (dotfiles stay the
-# single source of truth). ~/.fzf/bin is already on PATH via ~/.zshrc.
+# ==========================================
+# fzf installation
+# Installs/updates the fzf binary (~/.fzf) without touching shell rc files.
+# Key bindings and completions are wired up by the stowed .zshrc.
+# ==========================================
 
-set -e
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=../lib.sh
+source "$SCRIPT_DIR/../lib.sh"
 
 FZF_DIR="$HOME/.fzf"
 
-# Check if fzf is already installed
+log_section "fzf Installation"
+
 if [ -d "$FZF_DIR" ]; then
-    # Update existing installation
-    echo "FZF already installed. Updating..."
-    cd "$FZF_DIR" || exit 1
-    git pull
+	log_info "fzf already present; updating..."
+	git -C "$FZF_DIR" pull --rebase || true
 else
-    # Fresh installation
-    echo "Installing FZF..."
-    git clone --depth 1 https://github.com/junegunn/fzf.git "$FZF_DIR"
+	log_info "Cloning fzf..."
+	git clone --depth 1 https://github.com/junegunn/fzf.git "$FZF_DIR"
 fi
 
-# Install/update the binary only (no rc-file modifications)
 "$FZF_DIR/install" --bin
 
-echo "FZF installed to $FZF_DIR/bin/fzf"
+log_success "fzf installed: $("$FZF_DIR/bin/fzf" --version)"

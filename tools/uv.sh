@@ -1,137 +1,45 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # ==========================================
-# UV (Python Environment Manager) Installer
-# Astral: https://astral.sh/uv
-# Supports: x86_64 and aarch64 (ARM)
+# uv (Python environment manager) installer
+# Uses the official installer with UV_NO_MODIFY_PATH=1 so shell rc files are
+# never touched (dotfiles remain the single source of truth). Also installs
+# `ty` and `ruff` as uv tools.
 # ==========================================
 
-set -e
+set -euo pipefail
 
-# ==========================================
-# PART 1: PREREQUISITES & CLEANUP
-# ==========================================
-echo "------------------------------------------"
-echo "UV Installation & Setup"
-echo "------------------------------------------"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=../lib.sh
+source "$SCRIPT_DIR/../lib.sh"
 
-echo "[1/4] Checking for existing UV installations..."
+log_section "uv Installation"
 
-# List of UV-related binaries to check
-UV_BINARIES=("uv" "uvx" "uvw")
-FOUND_INSTALLATIONS=()
-
-for binary in "${UV_BINARIES[@]}"; do
-    if command -v "$binary" &> /dev/null; then
-        FOUND_INSTALLATIONS+=("$binary")
-        echo "  Found existing: $binary"
-    fi
-done
-
-# If existing installations found, uninstall them
-if [ ${#FOUND_INSTALLATIONS[@]} -gt 0 ]; then
-    echo ""
-    echo "⚠️  Found ${#FOUND_INSTALLATIONS[@]} existing UV installation(s)."
-    echo "Removing previous UV installations..."
-    
-    # Try to uninstall via the installer script
-    if [ -f "$HOME/.cargo/bin/uv" ]; then
-        echo "  Removing from ~/.cargo/bin..."
-        rm -f "$HOME/.cargo/bin/uv"
-    fi
-    
-    # Check if uv was installed via pip
-    if pip list 2>/dev/null | grep -q "^uv "; then
-        echo "  Removing UV installed via pip..."
-        pip uninstall uv -y 2>/dev/null || true
-    fi
-    
-    # Clean up any other installations
-    for binary in "${UV_BINARIES[@]}"; do
-        if command -v "$binary" &> /dev/null; then
-            BINARY_PATH=$(command -v "$binary")
-            echo "  Removing: $BINARY_PATH"
-            rm -f "$BINARY_PATH" || sudo rm -f "$BINARY_PATH" || true
-        fi
-    done
-    
-    echo "  Cleanup completed."
+# 1) Remove any legacy pip-installed uv to avoid PATH conflicts
+if pip list 2>/dev/null | grep -q "^uv "; then
+	log_info "Removing pip-installed uv..."
+	pip uninstall uv -y 2>/dev/null || true
 fi
 
-# ==========================================
-# PART 2: UV INSTALLATION
-# ==========================================
-echo ""
-echo "[2/4] Installing UV..."
-
-# Download and run the official installer
-if curl -LsSf https://astral.sh/uv/install.sh | sh; then
-    echo "✅  UV installation script executed successfully."
-else
-    echo "❌  Failed to run UV installation script."
-    exit 1
+# 2) Install uv without letting it modify shell profiles
+log_info "Installing uv..."
+if ! curl -LsSf https://astral.sh/uv/install.sh | UV_NO_MODIFY_PATH=1 sh; then
+	die "Failed to install uv"
 fi
 
-# ==========================================
-# PART 3: UV TOOLS INSTALLATION
-# ==========================================
-echo ""
-echo "[3/4] Installing UV Tools..."
+# uv installs to ~/.local/bin; add it to this session's PATH for verification
+export PATH="$LOCAL_BIN:$PATH"
 
-# Verify uv command is available
-if command -v uv &> /dev/null; then
-    
-    # Install tools
-    echo "  Installing 'ty' tool..."
-    if uv tool install ty@latest; then
-        echo "  ✅  ty installed"
-    else
-        echo "  ⚠️  Failed to install ty (optional)"
-    fi
-    
-    echo "  Installing 'ruff' tool..."
-    if uv tool install ruff@latest; then
-        echo "  ✅  ruff installed"
-    else
-        echo "  ⚠️  Failed to install ruff (optional)"
-    fi
-    
-else
-    echo "  ❌  UV binary not found in PATH. Installation may have failed."
-    exit 1
-fi
+# 3) Install uv tools
+log_info "Installing uv tools (ty, ruff)..."
+cmd_exists uv || die "uv binary not found on PATH after installation"
+uv tool install ty || log_warning "Failed to install ty (optional)"
+uv tool install ruff || log_warning "Failed to install ruff (optional)"
 
-# ==========================================
-# PART 4: VERIFICATION
-# ==========================================
-echo ""
-echo "[4/4] Verification Report"
-echo "------------------------------------------"
+# 4) Verification
+verify_tool uv
+verify_tool uvx
+verify_tool ty
+verify_tool ruff
 
-verify_tool() {
-    local name=$1
-    if command -v "$name" &> /dev/null; then
-        local version=$($name --version 2>&1 | head -n 1)
-        echo "✅  $name: FOUND ($version)"
-    else
-        echo "❌  $name: NOT FOUND"
-    fi
-}
-
-# Ensure UV path is in current shell for verification
-export PATH="$UV_INSTALL_DIR:$PATH"
-
-verify_tool "uv"
-verify_tool "uvx"
-verify_tool "ty"
-verify_tool "ruff"
-
-echo "------------------------------------------"
-echo ""
-echo "Installation Summary:"
-echo "  Installation directory: $UV_INSTALL_DIR"
-echo "  PATH updated in: ~/.bashrc, ~/.zshrc"
-echo ""
-echo "Note: If binaries are not found, run:"
-echo "  source ~/.bashrc (or ~/.zshrc)"
-echo "=========================================="
+log_info "uv and tools installed to ~/.local/bin (PATH managed by dotfiles)"

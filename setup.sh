@@ -1,52 +1,33 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Master Ubuntu Server Setup Script
-# This script automates the complete setup of an Ubuntu server from scratch
+# Automates the complete setup of an Ubuntu server from scratch.
 
-set -o pipefail
+set -euo pipefail
 
-# Color codes for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+# Resolve the script directory and source shared helpers
+# (lib.sh also enforces the non-root requirement)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib.sh
+source "$SCRIPT_DIR/lib.sh"
+
+# Verify we're on Ubuntu/Debian
+if [[ ! -f /etc/debian_version ]]; then
+	die "This script is designed for Ubuntu/Debian systems only"
+fi
 
 # Tracking arrays
 SUCCESSFUL_STEPS=()
 FAILED_STEPS=()
 
-# Helper functions
-log_info() {
-    echo -e "${GREEN}[INFO]${NC} $1"
+record_success() {
+	log_success "$1"
+	SUCCESSFUL_STEPS+=("$1")
 }
-
-log_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
+record_failure() {
+	log_error "$1 failed"
+	FAILED_STEPS+=("$1")
 }
-
-log_warning() {
-    echo -e "${YELLOW}[WARNING]${NC} $1"
-}
-
-log_section() {
-    echo -e "\n${BLUE}╔════════════════════════════════════════╗${NC}"
-    echo -e "${BLUE}║${NC} $1"
-    echo -e "${BLUE}╚════════════════════════════════════════╝${NC}"
-}
-
-log_success() {
-    echo -e "${GREEN}✓ $1${NC}"
-}
-
-# Get the directory where this script is located
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-
-# Verify we're on Linux
-if [[ ! "$OSTYPE" == "linux-gnu"* ]]; then
-    log_error "This script is designed for Linux systems only"
-    exit 1
-fi
 
 log_section "Ubuntu Server Setup Script"
 log_info "Script directory: $SCRIPT_DIR"
@@ -54,127 +35,66 @@ log_info "Home directory: $HOME"
 
 # Step 1: System Update
 log_section "Step 1: System Update"
-log_info "Running apt update and upgrade..."
-if sudo apt update && sudo apt upgrade -y; then
-    log_success "System updated and upgraded"
-    SUCCESSFUL_STEPS+=("System Update")
+if apt_update && sudo apt-get upgrade -y; then
+	record_success "System update"
 else
-    log_error "System update failed"
-    FAILED_STEPS+=("System Update")
+	record_failure "System update"
 fi
 
 # Step 2: Setup Zsh
-log_section "Step 2: Setting up Zsh"
-if [ -f "$SCRIPT_DIR/tools/zsh.sh" ]; then
-    log_info "Running zsh.sh..."
-    if bash "$SCRIPT_DIR/tools/zsh.sh"; then
-        log_success "Zsh setup complete"
-        SUCCESSFUL_STEPS+=("Zsh Setup")
-    else
-        log_error "Zsh setup failed"
-        FAILED_STEPS+=("Zsh Setup")
-    fi
+log_section "Step 2: Zsh"
+if bash "$SCRIPT_DIR/tools/zsh.sh"; then
+	record_success "Zsh setup"
 else
-    log_error "zsh.sh not found at $SCRIPT_DIR/tools/zsh.sh"
-    FAILED_STEPS+=("Zsh Setup")
+	record_failure "Zsh setup"
 fi
 
-# Step 3: Setup Stow and stow the dotfiles
-log_section "Step 3: Setting up Stow and Dotfiles"
-
-# Install stow
-log_info "Installing stow..."
-if sudo apt install stow -y; then
-    log_success "Stow installed"
-
-    # Stow the dotfiles
-    log_info "Stowing dotfiles from $SCRIPT_DIR/dotfiles to $HOME..."
-    if [ -d "$SCRIPT_DIR/dotfiles" ]; then
-        # Back up existing dotfiles that would clash with the ones we manage.
-        # Only real files are moved (existing symlinks from a previous stow are
-        # left alone so re-running setup is idempotent). ~/.zshrc and
-        # ~/.gitconfig are backed up explicitly as requested; ~/.p10k.zsh is
-        # managed here too so we include it for safety.
-        BACKUP_DIR="$HOME/.dotfiles_backup_$(date +%Y%m%d_%H%M%S)"
-        BACKUP_FILES=(".zshrc" ".gitconfig" ".p10k.zsh")
-        mkdir -p "$BACKUP_DIR"
-        backed_up=0
-        for f in "${BACKUP_FILES[@]}"; do
-            if [ -e "$HOME/$f" ] && [ ! -L "$HOME/$f" ]; then
-                mv "$HOME/$f" "$BACKUP_DIR/$f"
-                log_info "Backed up existing ~/$f -> $BACKUP_DIR/$f"
-                backed_up=$((backed_up + 1))
-            fi
-        done
-        if [ "$backed_up" -eq 0 ]; then
-            rmdir "$BACKUP_DIR" 2>/dev/null || true
-            log_info "No existing dotfiles needed backing up"
-        else
-            log_info "Backed up $backed_up file(s) to $BACKUP_DIR"
-        fi
-
-        if cd "$SCRIPT_DIR" && stow -v -t "$HOME" dotfiles && cd - > /dev/null; then
-            log_success "Dotfiles stowed successfully"
-            SUCCESSFUL_STEPS+=("Dotfiles Setup")
-        else
-            log_error "Failed to stow dotfiles"
-            FAILED_STEPS+=("Dotfiles Setup")
-        fi
-    else
-        log_error "dotfiles directory not found at $SCRIPT_DIR/dotfiles"
-        FAILED_STEPS+=("Dotfiles Setup")
-    fi
+# Step 3: Stow dotfiles (cloned to ~/dotfiles, never pulled on re-runs)
+log_section "Step 3: Dotfiles"
+if bash "$SCRIPT_DIR/tools/stow.sh"; then
+	record_success "Dotfiles setup"
 else
-    log_error "Failed to install stow"
-    FAILED_STEPS+=("Dotfiles Setup")
+	record_failure "Dotfiles setup"
 fi
 
 # Step 4: Install remaining tools
-log_section "Step 4: Installing Additional Tools"
-tools=("bat.sh" "docker.sh" "eza.sh" "fzf.sh" "neovim.sh" "tmux.sh" "uv.sh" "zoxide.sh")
+log_section "Step 4: Additional Tools"
+tools=("bat" "docker" "eza" "fd" "fzf" "neovim" "tmux" "uv" "zoxide")
 
 for tool in "${tools[@]}"; do
-    tool_path="$SCRIPT_DIR/tools/$tool"
-    if [ -f "$tool_path" ]; then
-        log_info "Installing from $tool..."
-        if bash "$tool_path"; then
-            log_success "$tool completed"
-            SUCCESSFUL_STEPS+=("${tool%.*}")
-        else
-            log_error "$tool failed"
-            FAILED_STEPS+=("${tool%.*}")
-        fi
-    else
-        log_warning "$tool not found at $tool_path, skipping..."
-        FAILED_STEPS+=("${tool%.*} (not found)")
-    fi
+	log_info "Installing $tool..."
+	if bash "$SCRIPT_DIR/tools/$tool.sh"; then
+		record_success "$tool"
+	else
+		record_failure "$tool"
+	fi
 done
 
-# Print Summary Report
+# Summary Report
 log_section "Setup Summary"
 echo -e "\n${GREEN}Successful Steps (${#SUCCESSFUL_STEPS[@]}):${NC}"
 for step in "${SUCCESSFUL_STEPS[@]}"; do
-    echo -e "  ${GREEN}✓${NC} $step"
+	echo -e "  ${GREEN}✓${NC} $step"
 done
 
 if [ ${#FAILED_STEPS[@]} -gt 0 ]; then
-    echo -e "\n${RED}Failed Steps (${#FAILED_STEPS[@]}):${NC}"
-    for step in "${FAILED_STEPS[@]}"; do
-        echo -e "  ${RED}✗${NC} $step"
-    done
+	echo -e "\n${RED}Failed Steps (${#FAILED_STEPS[@]}):${NC}"
+	for step in "${FAILED_STEPS[@]}"; do
+		echo -e "  ${RED}✗${NC} $step"
+	done
 fi
 
 echo ""
 if [ ${#FAILED_STEPS[@]} -eq 0 ]; then
-    log_success "All steps completed successfully!"
+	log_success "All steps completed successfully!"
 else
-    log_warning "${#FAILED_STEPS[@]} step(s) failed. Please review the errors above."
+	log_warning "${#FAILED_STEPS[@]} step(s) failed. Please review the errors above."
 fi
 
 echo ""
 log_info "Next steps:"
-echo "  1. You may need to restart your shell or log out and log back in"
+echo "  1. Log out and back in (or run 'newgrp docker') to apply group changes"
 echo "  2. Start a new shell session to use the new Zsh configuration"
-echo "  3. Check that all tools are properly installed"
+echo "  3. Verify tools: zsh docker nvim tmux fzf eza fd zoxide uv bat rg"
 echo ""
 log_info "Enjoy your newly configured Ubuntu server!"

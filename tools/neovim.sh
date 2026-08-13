@@ -1,260 +1,154 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # ==========================================
-# Neovim & Formatters Automation Installer
-# Supports: x86_64 and aarch64 (ARM)
+# Neovim + formatters installation
+# Supports x86_64 and aarch64 (ARM)
+# - Neovim: latest stable tarball -> /opt/nvim-linux
+# - Formatters: stylua, taplo, yamlfmt, shfmt -> ~/.local/bin
+# - shellcheck: via apt
+# - tree-sitter CLI: -> /usr/local/bin
+# ruff is installed by tools/uv.sh (single source of truth).
 # ==========================================
 
-set -e
+set -euo pipefail
 
-# 1. Global Architecture Check
-ARCH=$(uname -m)
-echo "Detected architecture: $ARCH"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=../lib.sh
+source "$SCRIPT_DIR/../lib.sh"
 
-# ==========================================
-# PART 1: NEOVIM INSTALLATION
-# ==========================================
-echo "------------------------------------------"
-echo "Starting Neovim Installation..."
-echo "------------------------------------------"
+ARCH="$(uname -m)"
 
-# Install Dependencies
-#   - unzip      : required to unpack nvim / StyLua / tree-sitter archives
-#   - ripgrep    : required by Telescope :live_grep
-if sudo apt install -y unzip ripgrep; then
-    echo "Dependencies Installed."
-else
-    echo "Unable to install dependencies"
-fi
+# Resolve the latest release asset URL for a repo, matching a filename pattern.
+# Returns an empty string (and exit 0) when no asset matches, so a missing
+# release never trips `set -e` in the caller.
+get_download_url() {
+	local repo="$1"
+	local pattern="$2"
+	curl -fsSL "https://api.github.com/repos/$repo/releases/latest" 2>/dev/null |
+		grep -oP '"browser_download_url": "\K(.*)(?=")' |
+		grep -i "$pattern" |
+		head -n 1 ||
+		true
+}
 
-# Define Neovim download URL based on architecture
-if [ "$ARCH" == "x86_64" ]; then
-    NVIM_URL="https://github.com/neovim/neovim/releases/latest/download/nvim-linux-x86_64.tar.gz"
-    NVIM_EXTRACT_FOLDER="nvim-linux-x86_64"
-elif [ "$ARCH" == "aarch64" ]; then
-    NVIM_URL="https://github.com/neovim/neovim/releases/latest/download/nvim-linux-arm64.tar.gz"
-    NVIM_EXTRACT_FOLDER="nvim-linux-arm64"
-else
-    echo "Error: Unsupported architecture $ARCH"
-    exit 1
-fi
+# Install a single binary from a GitHub release asset into ~/.local/bin
+# Usage: install_formatter <repo> <asset-pattern> <binary-name>
+install_formatter() {
+	local repo="$1" pattern="$2" binary="$3"
+	local url
+	url="$(get_download_url "$repo" "$pattern")"
+	if [ -z "$url" ]; then
+		log_warning "Could not resolve latest $binary release for $ARCH; skipping"
+		return 0
+	fi
+	local tmp
+	tmp="$(mktemp -d)"
+	curl -Ls "$url" -o "$tmp/asset"
+	case "$url" in
+	*.zip) unzip -q -o "$tmp/asset" -d "$tmp" ;;
+	*.tar.gz) tar -xzf "$tmp/asset" -C "$tmp" ;;
+	*.gz) gunzip -c "$tmp/asset" >"$tmp/$binary" ;;
+	*) mv "$tmp/asset" "$tmp/$binary" ;;
+	esac
+	mv "$tmp/$binary" "$LOCAL_BIN/$binary"
+	chmod u+x "$LOCAL_BIN/$binary"
+	rm -rf "$tmp"
+	log_success "$binary installed"
+}
 
-TEMP_DIR=$(mktemp -d)
+log_section "Neovim Installation"
 
-echo "Downloading Neovim stable..."
-curl -L "$NVIM_URL" -o "$TEMP_DIR/nvim.tar.gz"
+# 1) Dependencies
+apt_install unzip ripgrep shellcheck
+
+# 2) Architecture-specific settings
+case "$ARCH" in
+x86_64)
+	NVIM_URL="https://github.com/neovim/neovim/releases/latest/download/nvim-linux-x86_64.tar.gz"
+	NVIM_EXTRACT_FOLDER="nvim-linux-x86_64"
+	STYLUA_PATTERN="linux-x86_64.zip"
+	TAPLO_PATTERN="linux-x86_64.gz"
+	YAMLFMT_PATTERN="Linux_x86_64.tar.gz"
+	SHFMT_PATTERN="linux_amd64"
+	TS_ZIP="tree-sitter-cli-linux-x64.zip"
+	;;
+aarch64)
+	NVIM_URL="https://github.com/neovim/neovim/releases/latest/download/nvim-linux-arm64.tar.gz"
+	NVIM_EXTRACT_FOLDER="nvim-linux-arm64"
+	STYLUA_PATTERN="linux-aarch64.zip"
+	TAPLO_PATTERN="linux-aarch64.gz"
+	YAMLFMT_PATTERN="Linux_arm64.tar.gz"
+	SHFMT_PATTERN="linux_arm64"
+	TS_ZIP="tree-sitter-cli-linux-arm64.zip"
+	;;
+*) die "Unsupported architecture: $ARCH" ;;
+esac
+
+# 3) Neovim
+log_info "Downloading Neovim stable..."
+TMP="$(mktemp -d)"
+curl -L "$NVIM_URL" -o "$TMP/nvim.tar.gz"
 
 INSTALL_DIR_NVIM="/opt/nvim-linux"
-
-echo "Removing previous Neovim installations..."
 if [ -d "$INSTALL_DIR_NVIM" ]; then
-    sudo rm -rf "$INSTALL_DIR_NVIM"
+	sudo rm -rf "$INSTALL_DIR_NVIM"
 fi
 
-echo "Extracting to /opt..."
-sudo tar -C /opt -xzf "$TEMP_DIR/nvim.tar.gz"
-
-# Normalize folder name to /opt/nvim-linux
+sudo tar -C /opt -xzf "$TMP/nvim.tar.gz"
 if [ -d "/opt/$NVIM_EXTRACT_FOLDER" ]; then
-    sudo mv "/opt/$NVIM_EXTRACT_FOLDER" "$INSTALL_DIR_NVIM"
+	sudo mv "/opt/$NVIM_EXTRACT_FOLDER" "$INSTALL_DIR_NVIM"
 fi
-
-# Fix permissions: ensure current user owns the installation
 sudo chown -R "$USER:$USER" "$INSTALL_DIR_NVIM"
 sudo chmod -R u+rwx "$INSTALL_DIR_NVIM"
+rm -rf "$TMP"
 
-echo "Cleaning up Neovim temp files..."
-rm -rf "$TEMP_DIR"
+export PATH="$INSTALL_DIR_NVIM/bin:$PATH"
+log_success "Neovim installed: $(nvim --version | head -n1)"
 
-# Neovim's bin directory (/opt/nvim-linux/bin) is added to PATH by the stowed
-# ~/.zshrc, so we intentionally do NOT modify shell rc files here. Keeping tool
-# installers free of dotfile edits means dotfiles remain the single source of
-# truth (see request #5 in the repo's setup review).
-
-# Make the Neovim config usable with `sudo nvim` too. sudo resets HOME to
-# /root, so link root's nvim config dir at the user's config so the same
-# plugins/settings load when editing as root.
+# 4) sudo nvim: link root's config dir to the user's so plugins/settings load.
+# NOTE: this means user-controlled Lua runs when `sudo nvim` is used. Safe on a
+# single-user box, but review before enabling on a shared/multi-user server.
 NVIM_CONFIG_DIR="$HOME/.config/nvim"
 if [ -d "$NVIM_CONFIG_DIR" ]; then
-    sudo mkdir -p /root/.config
-    if [ -e /root/.config/nvim ] && [ ! -L /root/.config/nvim ]; then
-        echo "  [SKIP] /root/.config/nvim already exists as a real directory; not overwriting"
-    else
-        sudo ln -sfn "$NVIM_CONFIG_DIR" /root/.config/nvim
-        echo "  [OK] Linked /root/.config/nvim -> $NVIM_CONFIG_DIR"
-    fi
+	sudo mkdir -p /root/.config
+	if [ -e /root/.config/nvim ] && [ ! -L /root/.config/nvim ]; then
+		log_warning "/root/.config/nvim is a real directory; not overwriting"
+	else
+		sudo ln -sfn "$NVIM_CONFIG_DIR" /root/.config/nvim
+		log_info "Linked /root/.config/nvim -> $NVIM_CONFIG_DIR"
+	fi
 else
-    echo "  [WARN] $NVIM_CONFIG_DIR not found; stow dotfiles first for sudo nvim support"
+	log_warning "$NVIM_CONFIG_DIR not found; stow dotfiles first for sudo nvim support"
 fi
 
-# Add to current shell's PATH immediately so verification below finds nvim
-BIN_PATH="$INSTALL_DIR_NVIM/bin"
-export PATH="$BIN_PATH:$PATH"
-
-echo "Neovim installed successfully."
-
-# ==========================================
-# PART 2: FORMATTERS INSTALLATION
-# ==========================================
-echo "------------------------------------------"
-echo "Starting Formatter Installation..."
-echo "------------------------------------------"
-
-# Directory where we will install the binaries
-LOCAL_BIN="$HOME/.local/bin"
+# 5) Formatters
+log_section "Formatters"
 mkdir -p "$LOCAL_BIN"
 export PATH="$LOCAL_BIN:$PATH"
 
-# Determine Formatter Filename Patterns based on Arch
-if [ "$ARCH" == "x86_64" ]; then
-    STYLUA_PATTERN="linux-x86_64.zip"
-    TAPLO_PATTERN="linux-x86_64.gz"
-    YAMLFMT_PATTERN="Linux_x86_64.tar.gz"
-elif [ "$ARCH" == "aarch64" ]; then
-    STYLUA_PATTERN="linux-aarch64.zip"
-    TAPLO_PATTERN="linux-aarch64.gz"
-    YAMLFMT_PATTERN="Linux_arm64.tar.gz"
-fi
+install_formatter "JohnnyMorganz/StyLua" "$STYLUA_PATTERN" "stylua"
+install_formatter "tamasfe/taplo" "$TAPLO_PATTERN" "taplo"
+install_formatter "google/yamlfmt" "$YAMLFMT_PATTERN" "yamlfmt"
+install_formatter "mvdan/sh" "$SHFMT_PATTERN" "shfmt"
 
-echo "Using patterns for $ARCH:"
-echo "  StyLua:  $STYLUA_PATTERN"
-echo "  Taplo:   $TAPLO_PATTERN"
-echo "  Yamlfmt: $YAMLFMT_PATTERN"
-
-# Helper function to get download URL
-get_download_url() {
-    local repo=$1
-    local pattern=$2
-    
-    # We use -i in grep for case-insensitive matching
-    local url=$(curl -s "https://api.github.com/repos/$repo/releases/latest" | \
-        grep -oP '"browser_download_url": "\K(.*)(?=")' | \
-        grep -i "$pattern" | head -n 1)
-    
-    echo "$url"
-}
-
-TEMP_DIR=$(mktemp -d)
-
-# 1. Ruff (Python)
-echo "[1/4] Installing Ruff..."
-if command -v uv &> /dev/null; then
-    uv tool install ruff --force
-else
-    echo "  'uv' not found, installing via pip..."
-    pip install ruff --break-system-packages
-fi
-
-# 2. StyLua (Lua)
-echo "[2/4] Installing StyLua..."
-STYLUA_URL=$(get_download_url "JohnnyMorganz/StyLua" "$STYLUA_PATTERN")
-
-if [ -z "$STYLUA_URL" ]; then
-    echo "  ERROR: Could not find StyLua URL for $ARCH."
-else
-    curl -L -s "$STYLUA_URL" -o "$TEMP_DIR/stylua.zip"
-    unzip -q -o "$TEMP_DIR/stylua.zip" -d "$TEMP_DIR"
-    mv "$TEMP_DIR/stylua" "$LOCAL_BIN/stylua"
-    chmod u+x "$LOCAL_BIN/stylua"
-    chown "$USER:$USER" "$LOCAL_BIN/stylua"
-    echo "  Success."
-fi
-
-# 3. Taplo (TOML)
-echo "[3/4] Installing Taplo..."
-TAPLO_URL=$(get_download_url "tamasfe/taplo" "$TAPLO_PATTERN")
-
-if [ -z "$TAPLO_URL" ]; then
-    echo "  ERROR: Could not find Taplo URL for $ARCH."
-else
-    curl -L -s "$TAPLO_URL" -o "$TEMP_DIR/taplo.gz"
-    gunzip -f "$TEMP_DIR/taplo.gz"
-    mv "$TEMP_DIR/taplo" "$LOCAL_BIN/taplo"
-    chmod u+x "$LOCAL_BIN/taplo"
-    chown "$USER:$USER" "$LOCAL_BIN/taplo"
-    echo "  Success."
-fi
-
-# 4. Yamlfmt (YAML)
-echo "[4/4] Installing Yamlfmt..."
-YAMLFMT_URL=$(get_download_url "google/yamlfmt" "$YAMLFMT_PATTERN")
-
-if [ -z "$YAMLFMT_URL" ]; then
-    echo "  ERROR: Could not find Yamlfmt URL for $ARCH."
-else
-    curl -L -s "$YAMLFMT_URL" -o "$TEMP_DIR/yamlfmt.tar.gz"
-    tar -xzf "$TEMP_DIR/yamlfmt.tar.gz" -C "$TEMP_DIR"
-    mv "$TEMP_DIR/yamlfmt" "$LOCAL_BIN/yamlfmt"
-    chmod u+x "$LOCAL_BIN/yamlfmt"
-    chown "$USER:$USER" "$LOCAL_BIN/yamlfmt"
-    echo "  Success."
-fi
-
-rm -rf "$TEMP_DIR"
-
-# ==========================================
-# PART 3: TREE-SITTER INSTALLATION
-# ==========================================
-echo "------------------------------------------"
-echo "Starting Tree-sitter Installation..."
-echo "------------------------------------------"
-
-if [ "$ARCH" == "x86_64" ]; then
-    TS_ZIP="tree-sitter-cli-linux-x64.zip"
-elif [ "$ARCH" == "aarch64" ]; then
-    TS_ZIP="tree-sitter-cli-linux-arm64.zip"
-fi
-
-TS_URL="https://github.com/tree-sitter/tree-sitter/releases/latest/download/$TS_ZIP"
-echo "Downloading Tree-sitter from $TS_URL..."
-TEMP_DIR=$(mktemp -d)
-curl -L -s "$TS_URL" -o "$TEMP_DIR/$TS_ZIP"
-
-echo "Extracting Tree-sitter..."
-unzip -q -o "$TEMP_DIR/$TS_ZIP" -d "$TEMP_DIR"
-
-# Note: installing to /usr/local/bin as requested for global availability
-echo "Installing to /usr/local/bin..."
-sudo mv "$TEMP_DIR/tree-sitter" /usr/local/bin/tree-sitter
+# 6) tree-sitter CLI
+log_section "tree-sitter CLI"
+TMP="$(mktemp -d)"
+curl -Ls "https://github.com/tree-sitter/tree-sitter/releases/latest/download/$TS_ZIP" -o "$TMP/$TS_ZIP"
+unzip -q -o "$TMP/$TS_ZIP" -d "$TMP"
+sudo mv "$TMP/tree-sitter" /usr/local/bin/tree-sitter
 sudo chmod +x /usr/local/bin/tree-sitter
-
-rm -rf "$TEMP_DIR"
-
-# Clear bash command hash table to recognize the new binary
+rm -rf "$TMP"
 hash -r 2>/dev/null || true
+log_success "tree-sitter installed: $(tree-sitter --version | head -n1)"
 
-echo "Tree-sitter installed successfully."
-
-# ==========================================
-# VERIFICATION
-# ==========================================
-echo "------------------------------------------"
-echo "VERIFICATION REPORT"
-echo "------------------------------------------"
-
-verify_tool() {
-    local name=$1
-    if command -v "$name" &> /dev/null; then
-        local version=$($name --version 2>&1 | head -n 1)
-        echo -e "✅  $name:\tFOUND ($version)"
-    else
-        echo -e "❌  $name:\tNOT FOUND"
-    fi
-}
-
-# Ensure both paths are in current shell for verification
-export PATH="$BIN_PATH:$LOCAL_BIN:$PATH"
-
-verify_tool "nvim"
-verify_tool "rg"
-verify_tool "ruff"
-verify_tool "stylua"
-verify_tool "taplo"
-verify_tool "yamlfmt"
-verify_tool "tree-sitter"
-
-echo "------------------------------------------"
-echo "Note: Persistent PATH entries live in the stowed ~/.zshrc, not here:"
-echo "  - /opt/nvim-linux/bin   (Neovim)"
-echo "  - ~/.local/bin          (Formatters / uv tools)"
-echo "=========================================="
+# 7) Verification
+log_section "Verification"
+verify_tool nvim
+verify_tool rg
+verify_tool shellcheck
+verify_tool stylua
+verify_tool taplo
+verify_tool yamlfmt
+verify_tool shfmt
+verify_tool tree-sitter
