@@ -6,6 +6,8 @@
 # - Neovim: latest stable tarball -> /opt/nvim-linux
 # - Formatters: stylua, taplo, yamlfmt, shfmt -> ~/.local/bin
 # - shellcheck: via apt
+# - tree-sitter CLI -> /usr/local/bin (required by nvim-treesitter to build
+#   parsers) + a C compiler (build-essential) for `tree-sitter build`
 # ruff is installed by tools/uv.sh (single source of truth).
 # ==========================================
 
@@ -57,8 +59,9 @@ install_formatter() {
 
 log_section "Neovim Installation"
 
-# 1) Dependencies
-apt_install unzip ripgrep shellcheck
+# 1) Dependencies (build-essential provides the C compiler that
+#    `tree-sitter build` uses to compile nvim-treesitter parsers)
+apt_install unzip ripgrep shellcheck build-essential
 
 # 2) Architecture-specific settings
 case "$ARCH" in
@@ -69,6 +72,7 @@ x86_64)
 	TAPLO_PATTERN="linux-x86_64.gz"
 	YAMLFMT_PATTERN="Linux_x86_64.tar.gz"
 	SHFMT_PATTERN="linux_amd64"
+	TS_ASSET="tree-sitter-linux-x64.gz"
 	;;
 aarch64)
 	NVIM_URL="https://github.com/neovim/neovim/releases/latest/download/nvim-linux-arm64.tar.gz"
@@ -77,6 +81,7 @@ aarch64)
 	TAPLO_PATTERN="linux-aarch64.gz"
 	YAMLFMT_PATTERN="Linux_arm64.tar.gz"
 	SHFMT_PATTERN="linux_arm64"
+	TS_ASSET="tree-sitter-linux-arm64.gz"
 	;;
 *) die "Unsupported architecture: $ARCH" ;;
 esac
@@ -128,7 +133,22 @@ install_formatter "tamasfe/taplo" "$TAPLO_PATTERN" "taplo"
 install_formatter "google/yamlfmt" "$YAMLFMT_PATTERN" "yamlfmt"
 install_formatter "mvdan/sh" "$SHFMT_PATTERN" "shfmt"
 
-# 6) Verification
+# 6) tree-sitter CLI (nvim-treesitter needs it to generate/build parsers)
+#    Pin v0.25.10: the v0.26.x prebuilt binaries require glibc 2.39, which
+#    breaks Ubuntu 20.04/22.04 (glibc 2.31/2.35). v0.25.x is the newest line
+#    that runs there and still emits ABI-15 parsers for Neovim 0.10+.
+log_section "tree-sitter CLI"
+TS_VERSION="v0.25.10"
+TMP="$(mktemp -d)"
+curl -Ls "https://github.com/tree-sitter/tree-sitter/releases/download/$TS_VERSION/$TS_ASSET" -o "$TMP/tree-sitter.gz"
+gunzip -f "$TMP/tree-sitter.gz"
+sudo mv "$TMP/tree-sitter" /usr/local/bin/tree-sitter
+sudo chmod +x /usr/local/bin/tree-sitter
+rm -rf "$TMP"
+hash -r 2>/dev/null || true
+log_success "tree-sitter installed: $(tree-sitter --version | head -n1)"
+
+# 7) Verification
 log_section "Verification"
 verify_tool nvim
 verify_tool rg
@@ -137,3 +157,4 @@ verify_tool stylua
 verify_tool taplo
 verify_tool yamlfmt
 verify_tool shfmt
+verify_tool tree-sitter
