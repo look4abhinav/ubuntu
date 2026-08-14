@@ -16,6 +16,14 @@ if [[ ! -f /etc/debian_version ]]; then
 	die "This script is designed for Ubuntu/Debian systems only"
 fi
 
+# Verify architecture: Neovim (and its formatters/tree-sitter) are installed
+# from GitHub releases that only publish x86_64 and aarch64 binaries.
+ARCH="$(uname -m)"
+if [[ "$ARCH" != "x86_64" && "$ARCH" != "aarch64" ]]; then
+	die "Unsupported architecture: $ARCH (supported: x86_64, aarch64)"
+fi
+log_info "Architecture: $ARCH"
+
 # Tracking arrays
 SUCCESSFUL_STEPS=()
 FAILED_STEPS=()

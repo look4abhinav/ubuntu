@@ -18,6 +18,10 @@ This repo orchestrates the installation and ships its own Ubuntu-specific dotfil
 ## Prerequisites
 
 - Ubuntu (recent LTS), non-root user with `sudo`, internet access, Bash.
+- Architecture: `x86_64` (amd64) or `aarch64` (arm64). Neovim and its formatters
+  are installed from GitHub release binaries that are only published for these
+  two architectures; all other tools are architecture-agnostic (apt packages or
+  official installers that auto-detect the platform).
 
 ## Quick Start
 
