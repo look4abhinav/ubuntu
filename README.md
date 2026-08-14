@@ -4,13 +4,13 @@ A one-command setup that transforms a minimal Ubuntu server into a fully configu
 
 ## Overview
 
-This repo orchestrates the installation and ships its own Ubuntu-specific dotfiles in `dotfiles/`. These are copied to `~/dotfiles` and stowed from there (mirroring the Arch setup's layout, but kept completely separate from it).
+This repo orchestrates the installation. The Ubuntu-specific dotfiles live in a separate repo ([`ubuntu-dotfiles`](https://github.com/look4abhinav/ubuntu-dotfiles)), which is cloned into `~/dotfiles` and stowed from there.
 
 ## Features
 
 - **System update** via apt
 - **Zsh** installed and set as the default shell
-- **Dotfiles** bundled in `dotfiles/`, copied to `~/dotfiles`, and stowed (left untouched on re-runs)
+- **Dotfiles** cloned from [`ubuntu-dotfiles`](https://github.com/look4abhinav/ubuntu-dotfiles) into `~/dotfiles`, then stowed
 - **Docker** from the official repo, service enabled, user added to the `docker` group
 - **CLI tools**: `eza`, `fzf`, `fd`, `neovim`, `tmux`, `uv`, `zoxide`, `bat` (+ Catppuccin themes), `ripgrep`, `shellcheck`, `shfmt`
 - **Modular**: every tool is installable independently
@@ -49,9 +49,8 @@ ubuntu/
 ├── setup.sh        # main orchestration script
 ├── lib.sh          # shared helpers (logging, guarded apt update)
 ├── README.md
-├── dotfiles/       # Ubuntu-specific configs (copied to ~/dotfiles and stowed)
 └── tools/          # one script per tool
-    ├── stow.sh     # copies dotfiles to ~/dotfiles and stows
+    ├── stow.sh     # clones ubuntu-dotfiles to ~/dotfiles and stows
     ├── zsh.sh
     ├── bat.sh
     ├── docker.sh
@@ -64,12 +63,12 @@ ubuntu/
     └── zoxide.sh
 ```
 
-Dotfiles are bundled in `dotfiles/` and stowed from `~/dotfiles` (same layout as the Arch setup, but a separate set of configs).
+Dotfiles live in the separate [`ubuntu-dotfiles`](https://github.com/look4abhinav/ubuntu-dotfiles) repo and are cloned into `~/dotfiles` and stowed from there.
 
 ## Customization
 
 - **Add a tool**: drop `foo.sh` in `tools/` and append `foo` to the `tools` array in `setup.sh`.
-- **Change dotfiles**: edit `dotfiles/` in this repo (or `~/dotfiles` after setup), then `stow -d ~/dotfiles -t ~ .`. Re-running `setup.sh` will not overwrite an existing `~/dotfiles`.
+- **Change dotfiles**: edit the [`ubuntu-dotfiles`](https://github.com/look4abhinav/ubuntu-dotfiles) repo (or `~/dotfiles` after setup), then `stow -d ~/dotfiles -t ~ .`. Re-running `setup.sh` pulls updates if `~/dotfiles` is the `ubuntu-dotfiles` repo, otherwise it leaves `~/dotfiles` untouched.
 
 ## Notes
 

@@ -57,7 +57,7 @@ else
 	record_failure "Zsh setup"
 fi
 
-# Step 3: Stow dotfiles (cloned to ~/dotfiles, never pulled on re-runs)
+# Step 3: Stow dotfiles (cloned to ~/dotfiles from the ubuntu-dotfiles repo)
 log_section "Step 3: Dotfiles"
 if bash "$SCRIPT_DIR/tools/stow.sh"; then
 	record_success "Dotfiles setup"
