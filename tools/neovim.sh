@@ -44,7 +44,7 @@ install_formatter() {
 	fi
 	local tmp
 	tmp="$(mktemp -d)"
-	curl -Ls "$url" -o "$tmp/asset"
+	curl -fLs "$url" -o "$tmp/asset"
 	case "$url" in
 	*.zip) unzip -q -o "$tmp/asset" -d "$tmp" ;;
 	*.tar.gz) tar -xzf "$tmp/asset" -C "$tmp" ;;
@@ -89,7 +89,7 @@ esac
 # 3) Neovim
 log_info "Downloading Neovim stable..."
 TMP="$(mktemp -d)"
-curl -L "$NVIM_URL" -o "$TMP/nvim.tar.gz"
+curl -fL "$NVIM_URL" -o "$TMP/nvim.tar.gz"
 
 INSTALL_DIR_NVIM="/opt/nvim-linux"
 if [ -d "$INSTALL_DIR_NVIM" ]; then
@@ -140,7 +140,7 @@ install_formatter "mvdan/sh" "$SHFMT_PATTERN" "shfmt"
 log_section "tree-sitter CLI"
 TS_VERSION="v0.25.10"
 TMP="$(mktemp -d)"
-curl -Ls "https://github.com/tree-sitter/tree-sitter/releases/download/$TS_VERSION/$TS_ASSET" -o "$TMP/tree-sitter.gz"
+curl -fLs "https://github.com/tree-sitter/tree-sitter/releases/download/$TS_VERSION/$TS_ASSET" -o "$TMP/tree-sitter.gz"
 gunzip -f "$TMP/tree-sitter.gz"
 sudo mv "$TMP/tree-sitter" /usr/local/bin/tree-sitter
 sudo chmod +x /usr/local/bin/tree-sitter

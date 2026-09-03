@@ -38,7 +38,7 @@ fi
 log_info "Detected version: $TMUX_VERSION"
 
 TMP="$(mktemp -d)"
-curl -Ls "https://github.com/tmux/tmux/releases/download/${TMUX_VERSION}/tmux-${TMUX_VERSION}.tar.gz" -o "$TMP/tmux.tar.gz"
+curl -fLs "https://github.com/tmux/tmux/releases/download/${TMUX_VERSION}/tmux-${TMUX_VERSION}.tar.gz" -o "$TMP/tmux.tar.gz"
 tar -xzf "$TMP/tmux.tar.gz" -C "$TMP"
 
 SRC_DIR="$TMP/tmux-$TMUX_VERSION"

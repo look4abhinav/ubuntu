@@ -45,6 +45,8 @@ apt_install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-co
 # Enable the service and add the user to the docker group
 if sudo systemctl enable --now docker.service; then
 	log_success "Docker service enabled and started"
+else
+	log_warning "Could not enable/start docker.service; check 'systemctl status docker'"
 fi
 
 sudo usermod -aG docker "$USER"

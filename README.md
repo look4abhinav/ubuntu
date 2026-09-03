@@ -28,7 +28,7 @@ This repo orchestrates the installation. The Ubuntu-specific dotfiles live in a 
 One-liner (clones to a temp dir, runs setup, cleans up):
 
 ```bash
-curl -sL https://setup.look4abhinav.in | bash
+curl -sL https://look4abhinav.in/ubuntu | bash
 ```
 
 Or manually:
