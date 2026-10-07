@@ -14,7 +14,7 @@ source "$SCRIPT_DIR/../lib.sh"
 
 log_section "zoxide Installation"
 
-curl -sSfL https://raw.githubusercontent.com/ajeetdsouza/zoxide/main/install.sh | sh
+curl -sSfL --max-time 120 https://raw.githubusercontent.com/ajeetdsouza/zoxide/main/install.sh | sh
 
 export PATH="$HOME/.local/bin:$PATH"
 if cmd_exists zoxide; then

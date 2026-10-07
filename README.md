@@ -31,12 +31,32 @@ One-liner (clones to a temp dir, runs setup, cleans up):
 curl -sL https://look4abhinav.in/ubuntu | bash
 ```
 
+Options can be forwarded through the one-liner:
+
+```bash
+curl -sL https://look4abhinav.in/ubuntu | bash -s -- --skip=neovim,docker
+```
+
 Or manually:
 
 ```bash
 git clone https://github.com/look4abhinav/ubuntu
 cd ubuntu
 bash setup.sh
+```
+
+### Options
+
+- `--only=<a,b,c>` — run only the listed steps (in canonical order)
+- `--skip=<a,b,c>` — run everything except the listed steps
+
+Steps: `system-update`, `zsh`, `stow`, `bat`, `docker`, `eza`, `fd`, `fzf`, `neovim`, `tmux`, `uv`, `zoxide`.
+
+Examples:
+
+```bash
+bash setup.sh --skip=neovim,docker
+bash setup.sh --only=zsh,stow,fd
 ```
 
 Run individual tools with `bash tools/<tool>.sh`.
@@ -72,8 +92,14 @@ Dotfiles live in the separate [`ubuntu-dotfiles`](https://github.com/look4abhina
 
 ## Notes
 
-- Scripts use `set -euo pipefail` and refuse to run as root.
+- Scripts use `set -euo pipefail` and refuse to run as root (sudo must be installed).
+- **Preflight checks** run before anything installs: network reachability and free disk space (warns under 2 GB).
+- **Single-run lock**: concurrent runs are refused via `flock` so two setups can't fight over the apt lock.
+- **Unattended-safe apt**: dpkg runs with `DEBIAN_FRONTEND=noninteractive` and keeps existing config files on conffile conflicts, so `apt-get upgrade` never blocks on prompts (important for `curl | bash`).
+- **Exit code reflects failures**: `setup.sh` exits 1 if any step failed, so CI/cron/the one-liner can detect a partial setup.
+- If a step updates the kernel or core libraries, the summary reports that a reboot is required (`/var/run/reboot-required`).
 - `apt-get update` runs once per setup (30-minute guard) even though each tool is a separate process.
+- Before stowing, any real file in `~` that clashes with the dotfiles is backed up to `~/.dotfiles_backup_<timestamp>` automatically.
 - Adding the user to the `docker` group takes effect after re-login (or `newgrp docker`).
 - Tool installers never edit shell rc files; PATH and shell integration are managed by the stowed `.zshrc`.
 

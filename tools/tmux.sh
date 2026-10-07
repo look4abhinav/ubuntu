@@ -15,6 +15,11 @@ source "$SCRIPT_DIR/../lib.sh"
 
 MIN_VERSION="3.2"
 
+# Temp dir removed on exit (success, failure or interrupt) so failed builds
+# never leak half-extracted sources.
+TMP_ROOT="$(mktemp -d)"
+trap 'rm -rf "$TMP_ROOT"' EXIT
+
 log_section "tmux Installation"
 
 # Skip the build if a recent-enough tmux is already present
@@ -30,20 +35,19 @@ fi
 apt_install libevent-dev ncurses-dev build-essential bison pkg-config curl tar
 
 log_info "Fetching latest tmux version..."
-TMUX_VERSION="$(curl -s https://api.github.com/repos/tmux/tmux/releases/latest | grep -oP '"tag_name": "\K(.*)(?=")')"
+TMUX_VERSION="$(curl -s --max-time 30 https://api.github.com/repos/tmux/tmux/releases/latest | grep -oP '"tag_name": "\K(.*)(?=")' || true)"
 if [ -z "$TMUX_VERSION" ]; then
 	log_warning "Could not fetch latest version, using fallback 3.5a"
 	TMUX_VERSION="3.5a"
 fi
 log_info "Detected version: $TMUX_VERSION"
 
-TMP="$(mktemp -d)"
-curl -fLs "https://github.com/tmux/tmux/releases/download/${TMUX_VERSION}/tmux-${TMUX_VERSION}.tar.gz" -o "$TMP/tmux.tar.gz"
+TMP="$TMP_ROOT/build"
+curl -fLs --max-time 300 "https://github.com/tmux/tmux/releases/download/${TMUX_VERSION}/tmux-${TMUX_VERSION}.tar.gz" -o "$TMP/tmux.tar.gz"
 tar -xzf "$TMP/tmux.tar.gz" -C "$TMP"
 
 SRC_DIR="$TMP/tmux-$TMUX_VERSION"
 if [ ! -d "$SRC_DIR" ]; then
-	rm -rf "$TMP"
 	die "Source directory not found: $SRC_DIR"
 fi
 
@@ -53,6 +57,5 @@ fi
 	make
 	sudo make install
 )
-rm -rf "$TMP"
 
 log_success "tmux installed: $(tmux -V)"

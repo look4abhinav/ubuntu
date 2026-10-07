@@ -19,13 +19,30 @@ source "$SCRIPT_DIR/../lib.sh"
 
 ARCH="$(uname -m)"
 
+# All downloads go under one temp root, removed on exit (success, failure or
+# interrupt), so failed runs never leak half-extracted archives.
+TMP_ROOT="$(mktemp -d)"
+trap 'rm -rf "$TMP_ROOT"' EXIT
+
 # Resolve the latest release asset URL for a repo, matching a filename pattern.
-# Returns an empty string (and exit 0) when no asset matches, so a missing
-# release never trips `set -e` in the caller.
+# Retries once on transient network/API failures and returns an empty string
+# (and exit 0) when no asset matches, so a missing release or a rate-limited
+# GitHub API never trips `set -e` in the caller.
 get_download_url() {
 	local repo="$1"
 	local pattern="$2"
-	curl -fsSL "https://api.github.com/repos/$repo/releases/latest" 2>/dev/null |
+	local api_json=""
+	local attempt
+	for attempt in 1 2; do
+		api_json="$(curl -fsSL --max-time 30 "https://api.github.com/repos/$repo/releases/latest" 2>/dev/null || true)"
+		[ -n "$api_json" ] && break
+		[ "$attempt" -lt 2 ] && sleep 2
+	done
+	if [ -z "$api_json" ]; then
+		log_warning "GitHub API unreachable (rate limit/network?) for $repo"
+		return 0
+	fi
+	printf '%s' "$api_json" |
 		grep -oP '"browser_download_url": "\K(.*)(?=")' |
 		grep -i "$pattern" |
 		head -n 1 ||
@@ -43,8 +60,8 @@ install_formatter() {
 		return 0
 	fi
 	local tmp
-	tmp="$(mktemp -d)"
-	curl -fLs "$url" -o "$tmp/asset"
+	tmp="$(mktemp -d "$TMP_ROOT/$binary.XXXXXX")"
+	curl -fLs --max-time 300 "$url" -o "$tmp/asset"
 	case "$url" in
 	*.zip) unzip -q -o "$tmp/asset" -d "$tmp" ;;
 	*.tar.gz) tar -xzf "$tmp/asset" -C "$tmp" ;;
@@ -88,8 +105,8 @@ esac
 
 # 3) Neovim
 log_info "Downloading Neovim stable..."
-TMP="$(mktemp -d)"
-curl -fL "$NVIM_URL" -o "$TMP/nvim.tar.gz"
+TMP="$TMP_ROOT/nvim"
+curl -fL --max-time 600 "$NVIM_URL" -o "$TMP/nvim.tar.gz"
 
 INSTALL_DIR_NVIM="/opt/nvim-linux"
 if [ -d "$INSTALL_DIR_NVIM" ]; then
@@ -100,7 +117,7 @@ sudo tar -C /opt -xzf "$TMP/nvim.tar.gz"
 if [ -d "/opt/$NVIM_EXTRACT_FOLDER" ]; then
 	sudo mv "/opt/$NVIM_EXTRACT_FOLDER" "$INSTALL_DIR_NVIM"
 fi
-sudo chown -R "$USER:$USER" "$INSTALL_DIR_NVIM"
+sudo chown -R "$CURRENT_USER:$CURRENT_USER" "$INSTALL_DIR_NVIM"
 sudo chmod -R u+rwx "$INSTALL_DIR_NVIM"
 rm -rf "$TMP"
 
@@ -139,8 +156,9 @@ install_formatter "mvdan/sh" "$SHFMT_PATTERN" "shfmt"
 #    that runs there and still emits ABI-15 parsers for Neovim 0.10+.
 log_section "tree-sitter CLI"
 TS_VERSION="v0.25.10"
-TMP="$(mktemp -d)"
-curl -fLs "https://github.com/tree-sitter/tree-sitter/releases/download/$TS_VERSION/$TS_ASSET" -o "$TMP/tree-sitter.gz"
+TMP="$TMP_ROOT/tree-sitter"
+mkdir -p "$TMP"
+curl -fLs --max-time 120 "https://github.com/tree-sitter/tree-sitter/releases/download/$TS_VERSION/$TS_ASSET" -o "$TMP/tree-sitter.gz"
 gunzip -f "$TMP/tree-sitter.gz"
 sudo mv "$TMP/tree-sitter" /usr/local/bin/tree-sitter
 sudo chmod +x /usr/local/bin/tree-sitter

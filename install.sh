@@ -17,16 +17,20 @@ trap 'rm -rf -- "$INSTALL_DIR"' EXIT
 
 if ! command -v git >/dev/null 2>&1; then
 	echo "Installing git..."
-	sudo apt-get update -y
-	sudo apt-get install -y git
+	sudo env DEBIAN_FRONTEND=noninteractive apt-get update -y
+	sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y git
 fi
 
 echo "Cloning repository into $INSTALL_DIR..."
 git clone --depth 1 https://github.com/look4abhinav/ubuntu.git "$INSTALL_DIR"
 cd "$INSTALL_DIR"
 
+# Forward any arguments (e.g. --skip=neovim) through to setup.sh
 chmod +x setup.sh
-echo "Executing setup.sh..."
-./setup.sh
+echo "Executing setup.sh $*..."
+if ! ./setup.sh "$@"; then
+	echo "Setup FAILED -- review the errors above." >&2
+	exit 1
+fi
 
 echo "Setup complete! Directory will be cleaned up automatically."

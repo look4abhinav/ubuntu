@@ -38,7 +38,11 @@ else
 	git -C "$THEMES_DIR/catppuccin" pull --rebase >/dev/null 2>&1 || true
 fi
 
-find "$THEMES_DIR/catppuccin/themes" -name '*.tmTheme' -exec cp -f {} "$THEMES_DIR/" \;
+if [ -d "$THEMES_DIR/catppuccin/themes" ]; then
+	find "$THEMES_DIR/catppuccin/themes" -name '*.tmTheme' -exec cp -f {} "$THEMES_DIR/" \;
+else
+	log_warning "Catppuccin theme files not found (clone may have failed); skipping theme install"
+fi
 
 log_info "Building bat cache..."
 batcat cache --build

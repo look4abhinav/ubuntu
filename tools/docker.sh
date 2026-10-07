@@ -43,13 +43,25 @@ apt_force_update
 apt_install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 
 # Enable the service and add the user to the docker group
-if sudo systemctl enable --now docker.service; then
-	log_success "Docker service enabled and started"
+if command -v systemctl >/dev/null 2>&1; then
+	if sudo systemctl enable --now docker.service; then
+		log_success "Docker service enabled and started"
+	else
+		log_warning "Could not enable/start docker.service; check 'systemctl status docker'"
+	fi
 else
-	log_warning "Could not enable/start docker.service; check 'systemctl status docker'"
+	log_warning "systemctl not available (non-systemd system?); skipping service enable"
 fi
 
-sudo usermod -aG docker "$USER"
+sudo usermod -aG docker "$CURRENT_USER"
+
+# Verify the group membership landed in /etc/group (reads the group DB
+# directly, so it works even though the current session predates the change)
+if id -nG "$CURRENT_USER" | grep -qw docker; then
+	log_success "$CURRENT_USER added to the docker group"
+else
+	log_warning "Could not verify docker group membership; run: sudo usermod -aG docker $CURRENT_USER"
+fi
 
 log_success "Docker installed: $(docker --version)"
 log_warning "Group changes apply after re-login (or run 'newgrp docker')"

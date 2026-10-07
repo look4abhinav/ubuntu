@@ -23,7 +23,7 @@ fi
 
 # 2) Install uv without letting it modify shell profiles
 log_info "Installing uv..."
-if ! curl -LsSf https://astral.sh/uv/install.sh | UV_NO_MODIFY_PATH=1 sh; then
+if ! curl -LsSf --max-time 300 https://astral.sh/uv/install.sh | UV_NO_MODIFY_PATH=1 sh; then
 	die "Failed to install uv"
 fi
 

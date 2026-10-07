@@ -39,15 +39,15 @@ else
 fi
 
 # 3) Switch the default shell only if needed
-CURRENT_SHELL="$(getent passwd "$USER" | cut -d: -f7 || true)"
+CURRENT_SHELL="$(getent passwd "$CURRENT_USER" | cut -d: -f7 || true)"
 if [ "$CURRENT_SHELL" = "$ZSH_PATH" ]; then
-	log_info "zsh is already the default shell for $USER"
+	log_info "zsh is already the default shell for $CURRENT_USER"
 else
-	log_info "Switching default shell to $ZSH_PATH for $USER"
-	if sudo chsh -s "$ZSH_PATH" "$USER"; then
+	log_info "Switching default shell to $ZSH_PATH for $CURRENT_USER"
+	if sudo chsh -s "$ZSH_PATH" "$CURRENT_USER"; then
 		log_success "Default shell changed to $ZSH_PATH (log out/in to take effect)"
 	else
-		log_warning "Could not change shell automatically. Run: sudo chsh -s $ZSH_PATH $USER"
+		log_warning "Could not change shell automatically. Run: sudo chsh -s $ZSH_PATH $CURRENT_USER"
 	fi
 fi
 

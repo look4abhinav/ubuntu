@@ -28,7 +28,13 @@ if [ -d "$DOTFILES_DIR/.git" ]; then
 	# Already a git repo. If it's ours, refresh it; otherwise leave it alone.
 	if git -C "$DOTFILES_DIR" remote get-url origin 2>/dev/null | grep -q "ubuntu-dotfiles"; then
 		log_info "Updating existing dotfiles at $DOTFILES_DIR..."
-		git -C "$DOTFILES_DIR" pull --ff-only
+		# Local commits/divergence shouldn't abort the whole setup; stowing the
+		# existing checkout is still better than failing.
+		if git -C "$DOTFILES_DIR" pull --ff-only; then
+			log_info "Dotfiles updated"
+		else
+			log_warning "Could not fast-forward ~/dotfiles (local changes?); using existing checkout"
+		fi
 	else
 		log_warning "$DOTFILES_DIR is an unrelated git repo; leaving it untouched"
 	fi
@@ -40,20 +46,23 @@ else
 	log_success "Dotfiles cloned to $DOTFILES_DIR"
 fi
 
-# 3) Back up any existing real files that would clash with the stow targets
-#    (existing symlinks from a previous stow are left alone, keeping this idempotent)
+# 3) Back up any existing real files that would clash with the stow targets.
+#    A real file at any package path makes `stow` abort with a conflict, so
+#    detect clashes dynamically across the whole package instead of relying on
+#    a hardcoded list. Existing symlinks from a previous stow are left alone,
+#    keeping this idempotent.
 BACKUP_DIR="$HOME/.dotfiles_backup_$(date +%Y%m%d_%H%M%S)"
-BACKUP_FILES=(".zshrc" ".gitconfig" ".p10k.zsh")
 backed_up=0
 
-for f in "${BACKUP_FILES[@]}"; do
-	if [ -e "$HOME/$f" ] && [ ! -L "$HOME/$f" ]; then
-		mkdir -p "$BACKUP_DIR"
-		mv "$HOME/$f" "$BACKUP_DIR/$f"
-		log_info "Backed up ~/$f -> $BACKUP_DIR/$f"
+while IFS= read -r rel; do
+	target="$HOME/$rel"
+	if [ -e "$target" ] && [ ! -L "$target" ]; then
+		mkdir -p "$BACKUP_DIR/$(dirname "$rel")"
+		mv "$target" "$BACKUP_DIR/$rel"
+		log_info "Backed up ~/$rel -> $BACKUP_DIR/$rel"
 		backed_up=$((backed_up + 1))
 	fi
-done
+done < <(find "$DOTFILES_DIR" -path "$DOTFILES_DIR/.git" -prune -o -type f -printf '%P\n')
 
 if [ "$backed_up" -gt 0 ]; then
 	log_info "Backed up $backed_up file(s) to $BACKUP_DIR"
