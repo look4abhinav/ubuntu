@@ -26,7 +26,7 @@ Steps:
   system-update   apt update + upgrade
   zsh             Zsh as default shell
   stow            Clone ubuntu-dotfiles to ~/dotfiles and stow
-  bat docker eza fd fzf neovim tmux uv zoxide
+  bat docker eza fd fzf herdr neovim tmux uv zoxide
 
 Examples:
   bash setup.sh
@@ -72,7 +72,7 @@ while [ $# -gt 0 ]; do
 	esac
 done
 
-ALL_STEPS=("system-update" "zsh" "stow" "bat" "docker" "eza" "fd" "fzf" "neovim" "tmux" "uv" "zoxide")
+ALL_STEPS=("system-update" "zsh" "stow" "bat" "docker" "eza" "fd" "fzf" "herdr" "neovim" "tmux" "uv" "zoxide")
 
 # Validate requested steps against the known set
 validate_steps() {
@@ -255,7 +255,7 @@ echo ""
 log_info "Next steps:"
 echo "  1. Log out and back in (or run 'newgrp docker') to apply group changes"
 echo "  2. Start a new shell session to use the new Zsh configuration"
-echo "  3. Verify tools: zsh docker nvim tmux fzf eza fd zoxide uv bat rg"
+echo "  3. Verify tools: zsh docker nvim tmux fzf eza fd zoxide uv bat rg herdr"
 echo ""
 
 # Reflect failures in the exit code so install.sh, CI and cron can detect

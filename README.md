@@ -12,7 +12,7 @@ This repo orchestrates the installation. The Ubuntu-specific dotfiles live in a 
 - **Zsh** installed and set as the default shell
 - **Dotfiles** cloned from [`ubuntu-dotfiles`](https://github.com/look4abhinav/ubuntu-dotfiles) into `~/dotfiles`, then stowed
 - **Docker** from the official repo, service enabled, user added to the `docker` group
-- **CLI tools**: `eza`, `fzf`, `fd`, `neovim`, `tmux`, `uv`, `zoxide`, `bat` (+ Catppuccin themes), `ripgrep`, `shellcheck`, `shfmt`
+- **CLI tools**: `eza`, `fzf`, `fd`, `neovim`, `tmux`, `uv`, `zoxide`, `bat` (+ Catppuccin themes), `herdr`, `ripgrep`, `shellcheck`, `shfmt`
 - **Modular**: every tool is installable independently
 
 ## Prerequisites
@@ -50,7 +50,7 @@ bash setup.sh
 - `--only=<a,b,c>` — run only the listed steps (in canonical order)
 - `--skip=<a,b,c>` — run everything except the listed steps
 
-Steps: `system-update`, `zsh`, `stow`, `bat`, `docker`, `eza`, `fd`, `fzf`, `neovim`, `tmux`, `uv`, `zoxide`.
+Steps: `system-update`, `zsh`, `stow`, `bat`, `docker`, `eza`, `fd`, `fzf`, `herdr`, `neovim`, `tmux`, `uv`, `zoxide`.
 
 Examples:
 
@@ -77,6 +77,7 @@ ubuntu/
     ├── eza.sh
     ├── fd.sh
     ├── fzf.sh
+    ├── herdr.sh
     ├── neovim.sh
     ├── tmux.sh
     ├── uv.sh
